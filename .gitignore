@@ -1,0 +1,22 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*service-account*.json
+*service-account*.txt
+*credentials*.json
+*firebase-adminsdk*.json
+
+# Attached assets with sensitive data
+attached_assets/*service-account*
+attached_assets/*credentials*
+attached_assets/*.txt

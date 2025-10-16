@@ -1,0 +1,101 @@
+[
+  {
+    "id": "mock-1",
+    "title": "Stejar Premium - Pădurea Domnească",
+    "region": "Suceava",
+    "volumeM3": 245.5,
+    "currentPricePerM3": 125.3,
+    "startingPricePerM3": 110.0,
+    "projectedTotalValue": 30761.15,
+    "dominantSpecies": "Stejar",
+    "speciesBreakdown": [
+      { "species": "Stejar", "volumeM3": 220.5, "percentage": 89.8 },
+      { "species": "Gorun", "volumeM3": 25.0, "percentage": 10.2 }
+    ],
+    "endTime": 1761297600000,
+    "status": "live",
+    "bidCount": 12,
+    "currentBidderAnonymousId": "BIDDER-3421",
+    "ownerName": "Marcel Bercaru",
+    "apvPermitNumber": "APV-SV-2024-1234"
+  },
+  {
+    "id": "mock-2",
+    "title": "Fag de Munte - Rezerva Rarău",
+    "region": "Neamț",
+    "volumeM3": 189.2,
+    "currentPricePerM3": 78.5,
+    "startingPricePerM3": 65.0,
+    "projectedTotalValue": 14852.2,
+    "dominantSpecies": "Fag",
+    "speciesBreakdown": [
+      { "species": "Fag", "volumeM3": 175.8, "percentage": 92.9 },
+      { "species": "Carpen", "volumeM3": 13.4, "percentage": 7.1 }
+    ],
+    "endTime": 1761211200000,
+    "status": "live",
+    "bidCount": 8,
+    "currentBidderAnonymousId": "BIDDER-1567",
+    "ownerName": "Silviu Tănase",
+    "apvPermitNumber": "APV-NT-2024-0987"
+  },
+  {
+    "id": "mock-3",
+    "title": "Molid Carpatin - Valea Gurghiului",
+    "region": "Mureș",
+    "volumeM3": 412.8,
+    "currentPricePerM3": 45.2,
+    "startingPricePerM3": 38.0,
+    "projectedTotalValue": 18658.56,
+    "dominantSpecies": "Molid",
+    "speciesBreakdown": [
+      { "species": "Molid", "volumeM3": 380.5, "percentage": 92.2 },
+      { "species": "Brad", "volumeM3": 32.3, "percentage": 7.8 }
+    ],
+    "endTime": 1761124800000,
+    "status": "live",
+    "bidCount": 5,
+    "currentBidderAnonymousId": "BIDDER-9034",
+    "ownerName": "Ion Popescu",
+    "apvPermitNumber": "APV-MS-2024-5621"
+  },
+  {
+    "id": "mock-4",
+    "title": "Gorun Centenar - Codru Secular",
+    "region": "Maramureș",
+    "volumeM3": 167.4,
+    "currentPricePerM3": 142.8,
+    "startingPricePerM3": 120.0,
+    "projectedTotalValue": 23904.72,
+    "dominantSpecies": "Gorun",
+    "speciesBreakdown": [
+      { "species": "Gorun", "volumeM3": 155.2, "percentage": 92.7 },
+      { "species": "Stejar", "volumeM3": 12.2, "percentage": 7.3 }
+    ],
+    "endTime": 1761384000000,
+    "status": "live",
+    "bidCount": 18,
+    "currentBidderAnonymousId": "BIDDER-2189",
+    "ownerName": "Andrei Mureșan",
+    "apvPermitNumber": "APV-MM-2024-3456"
+  },
+  {
+    "id": "mock-5",
+    "title": "Pin Maritim - Delta Dunării",
+    "region": "Tulcea",
+    "volumeM3": 298.6,
+    "currentPricePerM3": 52.3,
+    "startingPricePerM3": 45.0,
+    "projectedTotalValue": 15616.78,
+    "dominantSpecies": "Pin",
+    "speciesBreakdown": [
+      { "species": "Pin", "volumeM3": 285.4, "percentage": 95.6 },
+      { "species": "Plop", "volumeM3": 13.2, "percentage": 4.4 }
+    ],
+    "endTime": 1761470400000,
+    "status": "upcoming",
+    "bidCount": 0,
+    "ownerName": "Gheorghe Ionescu",
+    "apvPermitNumber": "APV-TL-2024-7890"
+  }
+]
