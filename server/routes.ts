@@ -5,18 +5,26 @@ import { z } from "zod";
 import { insertAuctionSchema, insertBidSchema, Auction, Bid } from "@shared/schema";
 import { getDocument, setDocument } from "./services/firestoreRestClient";
 import { extractApvData } from "./services/ocrService";
-import { 
-  validateBid, 
-  processProxyBid, 
-  checkActivityEligibility, 
+import {
+  validateBid,
+  processProxyBid,
+  checkActivityEligibility,
   checkSoftClose,
-  generateAnonymousBidderId 
+  generateAnonymousBidderId
 } from "./utils/auctionEngine";
+import { AuctionScheduler } from "./services/auctionScheduler";
+import {
+  groupByDiameterClass,
+  groupByTreatmentType,
+  buildScatterData,
+  getAuctionPrice,
+} from "./utils/analyticsHelpers";
 
 // Initialize Firebase Admin (optional for MVP - client SDK handles most operations)
-// Server-side Firebase Admin is not required for this MVP as all operations 
+// Server-side Firebase Admin is not required for this MVP as all operations
 // use client-side Firebase SDK with Firestore security rules
 let db: admin.firestore.Firestore | null = null;
+let auctionScheduler: AuctionScheduler | null = null;
 
 if (!admin.apps.length) {
   try {
@@ -45,6 +53,11 @@ if (!admin.apps.length) {
         useBigInt: false,
       });
       console.log("✅ Firebase Admin initialized successfully");
+
+      // Initialize auction scheduler for lifecycle management
+      auctionScheduler = new AuctionScheduler(db);
+      auctionScheduler.start();
+      console.log("✅ Auction lifecycle scheduler initialized and started");
     } else {
       console.log("ℹ️  Firebase Admin not configured - All operations use client-side Firebase SDK");
       console.log("   This is expected for the MVP. The app will work fully with Firestore security rules.");
@@ -464,8 +477,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const allAuctions = await listDocuments("auctions");
-      const wonAuctions = allAuctions.filter(a => 
-        a.status === "completed" && a.currentBidderId === userId
+      const wonAuctions = allAuctions.filter(a =>
+        (a.status === "sold" || a.status === "ended") && a.currentBidderId === userId
       );
 
       res.json(wonAuctions);
@@ -688,8 +701,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const decodedToken = await admin.auth().verifyIdToken(token);
       const userId = decodedToken.uid;
+      const authEmail = decodedToken.email;
 
       const { email, displayName, role, kycStatus } = req.body;
+
+      console.log(`[USER-CREATE] Creating user document for UID: ${userId}`);
+      console.log(`[USER-CREATE] Email: ${email}, Display Name: ${displayName}, Role: ${role}, KYC: ${kycStatus || "pending"}`);
 
       const userData = {
         id: userId,
@@ -701,11 +718,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       await setDocument("users", userId, userData);
-      
+
+      console.log(`[USER-CREATE] User document created successfully for ${email} with role: ${role}`);
       res.status(201).json(userData);
     } catch (error: any) {
-      console.error("Error creating user:", error);
-      res.status(500).json({ error: "Failed to create user document" });
+      console.error("[USER-CREATE] Error creating user:", error);
+      res.status(500).json({ error: "Failed to create user document", details: error.message });
     }
   });
 
@@ -719,12 +737,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const decodedToken = await admin.auth().verifyIdToken(token);
       const userId = decodedToken.uid;
+      const email = decodedToken.email;
+
+      console.log(`[USER-ME] Fetching user data for UID: ${userId}, Email: ${email}`);
 
       const userData = await getDocument("users", userId);
       if (!userData) {
-        return res.status(404).json({ error: "User not found" });
+        console.error(`[USER-ME] User document not found for UID: ${userId}, Email: ${email}`);
+        console.log(`[USER-ME] The user exists in Auth but has no Firestore document. This usually means signup didn't complete successfully.`);
+        return res.status(404).json({
+          error: "User not found",
+          details: "User document missing in database. Please try signing up again or contact support."
+        });
       }
 
+      console.log(`[USER-ME] User found: ${userData.displayName}, Role: ${userData.role}`);
       res.json(userData);
     } catch (error: any) {
       console.error("Error fetching user:", error);
@@ -893,18 +920,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Filter completed/sold auctions
       const completedAuctions = allAuctions.filter(a => a.status === "sold" || a.status === "ended");
-      
+
       // Calculate total volume sold
       const totalVolume = completedAuctions.reduce((sum, a) => sum + (a.volumeM3 || 0), 0);
-      
-      // Calculate average market price (weighted by volume)
+
+      // Calculate average market price (weighted by volume) using helper function
       const totalValue = completedAuctions.reduce((sum, a) => {
-        const pricePerM3 = a.currentPricePerM3 ?? a.startingPricePerM3 ?? 0;
+        const pricePerM3 = getAuctionPrice(a);
         const volume = a.volumeM3 || 0;
         return sum + (pricePerM3 * volume);
       }, 0);
       const avgMarketPrice = totalVolume > 0 ? totalValue / totalVolume : 0;
-      
+
       // Find most popular species
       const speciesCount: Record<string, number> = {};
       completedAuctions.forEach(a => {
@@ -915,16 +942,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
       const mostPopularSpecies = Object.entries(speciesCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
-      
+
       // Price trends by species (last 30 days)
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
       const recentAuctions = completedAuctions.filter(a => a.createdAt >= thirtyDaysAgo);
-      
+
       const priceTrendsBySpecies: Record<string, { date: string; pricePerM3: number; count: number }[]> = {};
       recentAuctions.forEach(a => {
         const dateStr = new Date(a.createdAt).toISOString().split('T')[0];
-        const pricePerM3 = a.currentPricePerM3 ?? a.startingPricePerM3 ?? 0;
-        
+        const pricePerM3 = getAuctionPrice(a);
+
         if (a.speciesBreakdown) {
           a.speciesBreakdown.forEach((sb: any) => {
             if (!priceTrendsBySpecies[sb.species]) {
@@ -940,7 +967,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       });
-      
+
       // Volume sold by species
       const volumeBySpecies: Record<string, number> = {};
       completedAuctions.forEach(a => {
@@ -951,22 +978,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       });
-      
+
       // Average price by region
       const priceByRegion: Record<string, { total: number; count: number }> = {};
       completedAuctions.forEach(a => {
-        const pricePerM3 = a.currentPricePerM3 ?? a.startingPricePerM3 ?? 0;
+        const pricePerM3 = getAuctionPrice(a);
         if (!priceByRegion[a.region]) {
           priceByRegion[a.region] = { total: 0, count: 0 };
         }
         priceByRegion[a.region].total += pricePerM3;
         priceByRegion[a.region].count++;
       });
-      
+
       const avgPriceByRegion = Object.entries(priceByRegion).map(([region, data]) => ({
         region,
         avgPricePerM3: data.count > 0 ? data.total / data.count : 0
       }));
+
+      // ==================== PHASE 2: NEW ANALYTICS ====================
+
+      // Diameter class analysis - using modular helper function
+      const diameterClasses = groupByDiameterClass(completedAuctions);
+
+      // Treatment type breakdown - using modular helper function
+      const treatmentTypes = groupByTreatmentType(completedAuctions);
+
+      // Volume vs Price scatter data - using modular helper function
+      const scatterData = buildScatterData(completedAuctions);
 
       res.json({
         stats: {
@@ -978,6 +1016,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priceTrendsBySpecies,
         volumeBySpecies,
         avgPriceByRegion,
+        // Phase 2 analytics
+        diameterClasses,
+        treatmentTypes,
+        scatterData,
       });
     } catch (error: any) {
       console.error("Error fetching market analytics:", error);
@@ -985,9 +1027,368 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== PHASE 3: WATCHLIST PRESETS ====================
+
+  // Get user's watchlist presets
+  app.get("/api/market/watchlist/presets", async (req, res) => {
+    try {
+      if (!db) {
+        return res.status(503).json({ error: "Server-side Firebase not configured" });
+      }
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const snapshot = await db.collection("watchlistPresets")
+        .where("userId", "==", userId)
+        .get();
+
+      const presets = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      })).sort((a: any, b: any) => (b.lastUsed || 0) - (a.lastUsed || 0));
+
+      res.json(presets);
+    } catch (error: any) {
+      console.error("Error fetching watchlist presets:", error);
+      res.status(500).json({ error: "Failed to fetch presets" });
+    }
+  });
+
+  // Create watchlist preset
+  app.post("/api/market/watchlist/presets", async (req, res) => {
+    try {
+      if (!db) {
+        return res.status(503).json({ error: "Server-side Firebase not configured" });
+      }
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const { name, filters } = req.body;
+
+      if (!name || !filters) {
+        return res.status(400).json({ error: "Name and filters are required" });
+      }
+
+      const presetData = {
+        userId,
+        name,
+        filters,
+        createdAt: Date.now(),
+      };
+
+      const presetRef = await db.collection("watchlistPresets").add(presetData);
+
+      res.status(201).json({
+        id: presetRef.id,
+        ...presetData,
+      });
+    } catch (error: any) {
+      console.error("Error creating preset:", error);
+      res.status(400).json({ error: error.message || "Failed to create preset" });
+    }
+  });
+
+  // Update preset last used timestamp
+  app.patch("/api/market/watchlist/presets/:id/use", async (req, res) => {
+    try {
+      if (!db) {
+        return res.status(503).json({ error: "Server-side Firebase not configured" });
+      }
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+      const { id } = req.params;
+
+      const presetDoc = await db.collection("watchlistPresets").doc(id).get();
+
+      if (!presetDoc.exists) {
+        return res.status(404).json({ error: "Preset not found" });
+      }
+
+      const presetData = presetDoc.data();
+      if (presetData?.userId !== userId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      await presetDoc.ref.update({ lastUsed: Date.now() });
+
+      res.json({
+        id: presetDoc.id,
+        ...presetData,
+        lastUsed: Date.now(),
+      });
+    } catch (error: any) {
+      console.error("Error updating preset:", error);
+      res.status(500).json({ error: "Failed to update preset" });
+    }
+  });
+
+  // Delete watchlist preset
+  app.delete("/api/market/watchlist/presets/:id", async (req, res) => {
+    try {
+      if (!db) {
+        return res.status(503).json({ error: "Server-side Firebase not configured" });
+      }
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+      const { id } = req.params;
+
+      const presetDoc = await db.collection("watchlistPresets").doc(id).get();
+
+      if (!presetDoc.exists) {
+        return res.status(404).json({ error: "Preset not found" });
+      }
+
+      const presetData = presetDoc.data();
+      if (presetData?.userId !== userId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      await presetDoc.ref.delete();
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting preset:", error);
+      res.status(500).json({ error: "Failed to delete preset" });
+    }
+  });
+
+  // ==================== PHASE 3: PRICE ALERTS ====================
+
+  // Get user's price alerts
+  app.get("/api/market/alerts", async (req, res) => {
+    try {
+      if (!db) {
+        return res.status(503).json({ error: "Server-side Firebase not configured" });
+      }
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const snapshot = await db.collection("priceAlerts")
+        .where("userId", "==", userId)
+        .get();
+
+      const alerts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      })).sort((a: any, b: any) => b.createdAt - a.createdAt);
+
+      res.json(alerts);
+    } catch (error: any) {
+      console.error("Error fetching price alerts:", error);
+      res.status(500).json({ error: "Failed to fetch alerts" });
+    }
+  });
+
+  // Create price alert
+  app.post("/api/market/alerts", async (req, res) => {
+    try {
+      if (!db) {
+        return res.status(503).json({ error: "Server-side Firebase not configured" });
+      }
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const { species, region, alertType, threshold, active } = req.body;
+
+      if (!alertType || !threshold) {
+        return res.status(400).json({ error: "Alert type and threshold are required" });
+      }
+
+      const alertData = {
+        userId,
+        species: species || null,
+        region: region || null,
+        alertType,
+        threshold,
+        active: active !== undefined ? active : true,
+        createdAt: Date.now(),
+      };
+
+      const alertRef = await db.collection("priceAlerts").add(alertData);
+
+      res.status(201).json({
+        id: alertRef.id,
+        ...alertData,
+      });
+    } catch (error: any) {
+      console.error("Error creating alert:", error);
+      res.status(400).json({ error: error.message || "Failed to create alert" });
+    }
+  });
+
+  // Update price alert (toggle active status or modify settings)
+  app.patch("/api/market/alerts/:id", async (req, res) => {
+    try {
+      if (!db) {
+        return res.status(503).json({ error: "Server-side Firebase not configured" });
+      }
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+      const { id } = req.params;
+
+      const alertDoc = await db.collection("priceAlerts").doc(id).get();
+
+      if (!alertDoc.exists) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+
+      const alertData = alertDoc.data();
+      if (alertData?.userId !== userId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const updates: any = {};
+      if (req.body.active !== undefined) updates.active = req.body.active;
+      if (req.body.threshold !== undefined) updates.threshold = req.body.threshold;
+      if (req.body.species !== undefined) updates.species = req.body.species;
+      if (req.body.region !== undefined) updates.region = req.body.region;
+
+      await alertDoc.ref.update(updates);
+
+      res.json({
+        id: alertDoc.id,
+        ...alertData,
+        ...updates,
+      });
+    } catch (error: any) {
+      console.error("Error updating alert:", error);
+      res.status(500).json({ error: "Failed to update alert" });
+    }
+  });
+
+  // Delete price alert
+  app.delete("/api/market/alerts/:id", async (req, res) => {
+    try {
+      if (!db) {
+        return res.status(503).json({ error: "Server-side Firebase not configured" });
+      }
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+      const { id } = req.params;
+
+      const alertDoc = await db.collection("priceAlerts").doc(id).get();
+
+      if (!alertDoc.exists) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+
+      const alertData = alertDoc.data();
+      if (alertData?.userId !== userId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      await alertDoc.ref.delete();
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting alert:", error);
+      res.status(500).json({ error: "Failed to delete alert" });
+    }
+  });
+
   // Health check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: Date.now() });
+  });
+
+  // Auction lifecycle management endpoints
+
+  // Manually trigger lifecycle check (admin/testing endpoint)
+  app.post("/api/admin/lifecycle/trigger", async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      await admin.auth().verifyIdToken(token);
+
+      if (!auctionScheduler) {
+        return res.status(503).json({ error: "Auction scheduler not initialized" });
+      }
+
+      await auctionScheduler.triggerLifecycleCheck();
+      res.json({ success: true, message: "Lifecycle check triggered successfully" });
+    } catch (error: any) {
+      console.error("Error triggering lifecycle check:", error);
+      res.status(500).json({ error: "Failed to trigger lifecycle check" });
+    }
+  });
+
+  // Get auction lifecycle scheduler status
+  app.get("/api/admin/lifecycle/status", async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      await admin.auth().verifyIdToken(token);
+
+      if (!auctionScheduler) {
+        return res.json({
+          schedulerActive: false,
+          message: "Auction scheduler not initialized"
+        });
+      }
+
+      const summary = await auctionScheduler.getLifecycleManager().getAuctionsSummary();
+
+      res.json({
+        schedulerActive: auctionScheduler.isActive(),
+        auctionsSummary: summary,
+        timestamp: Date.now()
+      });
+    } catch (error: any) {
+      console.error("Error getting scheduler status:", error);
+      res.status(500).json({ error: "Failed to get scheduler status" });
+    }
   });
 
   const httpServer = createServer(app);

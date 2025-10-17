@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertAuctionSchema, regions, speciesTypes, InsertAuction, SpeciesBreakdown, ApvExtractionResult } from "@shared/schema";
@@ -30,6 +30,11 @@ export default function CreateListingPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [showManualEntry, setShowManualEntry] = useState(false);
 
+  // Timer controls for testing
+  const [startInMinutes, setStartInMinutes] = useState(1);
+  const [durationValue, setDurationValue] = useState(7);
+  const [durationUnit, setDurationUnit] = useState<'minutes' | 'hours' | 'days'>('days');
+
   const form = useForm<InsertAuction>({
     resolver: zodResolver(insertAuctionSchema),
     defaultValues: {
@@ -38,12 +43,40 @@ export default function CreateListingPage() {
       region: undefined,
       location: "",
       volumeM3: undefined,
-      startingPrice: undefined,
+      startingPricePerM3: undefined,
       speciesBreakdown: [],
-      startTime: Date.now() + 3600000,
-      endTime: Date.now() + 7 * 24 * 3600000,
+      startTime: Date.now() + 60000, // Start in 1 minute
+      endTime: Date.now() + 60000 + (7 * 24 * 3600000), // + 7 days
     },
   });
+
+  // Update times when timer controls change
+  const updateAuctionTimes = () => {
+    const startTime = Date.now() + (startInMinutes * 60000);
+    let durationMs = 0;
+
+    switch (durationUnit) {
+      case 'minutes':
+        durationMs = durationValue * 60000;
+        break;
+      case 'hours':
+        durationMs = durationValue * 3600000;
+        break;
+      case 'days':
+        durationMs = durationValue * 24 * 3600000;
+        break;
+    }
+
+    const endTime = startTime + durationMs;
+
+    form.setValue('startTime', startTime);
+    form.setValue('endTime', endTime);
+  };
+
+  // Initialize timer values on mount
+  useEffect(() => {
+    updateAuctionTimes();
+  }, []);
 
   const addSpecies = () => {
     const updated: SpeciesBreakdown[] = [...speciesBreakdown, { species: "Stejar" as const, percentage: 0 }];
@@ -1106,6 +1139,11 @@ export default function CreateListingPage() {
                               step="0.01"
                               data-testid={`input-percentage-${index}`}
                             />
+                            {item.volumeM3 !== undefined && (
+                              <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md text-sm font-medium min-w-[100px]">
+                                {item.volumeM3} m³
+                              </div>
+                            )}
                             {speciesBreakdown.length > 1 && (
                               <Button
                                 type="button"
@@ -1162,24 +1200,106 @@ export default function CreateListingPage() {
 
                   <FormField
                     control={form.control}
-                    name="startingPrice"
+                    name="startingPricePerM3"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Starting Price (€)</FormLabel>
+                        <FormLabel>Starting Price (€/m³)</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
-                            placeholder="50000"
+                            placeholder="100"
                             {...field}
                             onChange={e => field.onChange(parseFloat(e.target.value))}
                             data-testid="input-starting-price"
                           />
                         </FormControl>
+                        <FormDescription>Price per cubic meter</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
+
+                {/* Manual Timer Control for Testing */}
+                <Card className="bg-muted/30 border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <span className="text-2xl">⏱️</span>
+                      Auction Timer (Testing)
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Set custom auction duration for testing the lifecycle automation
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Start In (minutes)</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={startInMinutes}
+                        onChange={(e) => {
+                          setStartInMinutes(parseInt(e.target.value) || 0);
+                          setTimeout(updateAuctionTimes, 0);
+                        }}
+                        placeholder="1"
+                        data-testid="input-start-in-minutes"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Auction will start in {startInMinutes} minute{startInMinutes !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Duration</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={durationValue}
+                          onChange={(e) => {
+                            setDurationValue(parseInt(e.target.value) || 1);
+                            setTimeout(updateAuctionTimes, 0);
+                          }}
+                          placeholder="7"
+                          data-testid="input-duration-value"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Unit</label>
+                        <Select
+                          value={durationUnit}
+                          onValueChange={(value: 'minutes' | 'hours' | 'days') => {
+                            setDurationUnit(value);
+                            setTimeout(updateAuctionTimes, 0);
+                          }}
+                        >
+                          <SelectTrigger data-testid="select-duration-unit">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="minutes">Minutes</SelectItem>
+                            <SelectItem value="hours">Hours</SelectItem>
+                            <SelectItem value="days">Days</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <Alert>
+                      <AlertDescription>
+                        <strong>Auction Schedule:</strong>
+                        <div className="mt-2 space-y-1 text-sm">
+                          <div>• Starts: {new Date(form.watch('startTime')).toLocaleString()}</div>
+                          <div>• Ends: {new Date(form.watch('endTime')).toLocaleString()}</div>
+                          <div className="text-xs text-muted-foreground mt-2">
+                            💡 Set to 2-3 minutes for quick testing of auction end and winner settlement
+                          </div>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  </CardContent>
+                </Card>
 
                 <div className="flex gap-3 pt-4">
                   <Button

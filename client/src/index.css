@@ -350,4 +350,270 @@
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
   }
+
+  /* ==========================================
+   * TRADING TERMINAL ANIMATIONS & STYLES
+   * ========================================== */
+
+  /* Soft pulse animation - slower and more subtle than default Tailwind pulse */
+  @keyframes pulse-soft {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.75;
+    }
+  }
+
+  .animate-pulse-soft {
+    animation: pulse-soft 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Breathing ring animation for countdown urgency */
+  @keyframes countdown-ring {
+    0%, 100% {
+      box-shadow: 0 0 0 0 currentColor;
+      opacity: 1;
+    }
+    50% {
+      box-shadow: 0 0 0 3px currentColor;
+      opacity: 0.7;
+    }
+  }
+
+  .countdown-ring {
+    animation: countdown-ring 2s ease-in-out infinite;
+  }
+
+  /* Faster countdown ring for extreme urgency */
+  @keyframes countdown-ring-fast {
+    0%, 100% {
+      box-shadow: 0 0 0 0 currentColor;
+      opacity: 1;
+    }
+    50% {
+      box-shadow: 0 0 0 4px currentColor;
+      opacity: 0.6;
+    }
+  }
+
+  .countdown-ring-fast {
+    animation: countdown-ring-fast 1.2s ease-in-out infinite;
+  }
+
+  /* Shimmer gradient animation for species bar "live" feel */
+  @keyframes shimmer {
+    0% {
+      background-position: -200% center;
+    }
+    100% {
+      background-position: 200% center;
+    }
+  }
+
+  .animate-shimmer {
+    background-size: 200% 100%;
+    animation: shimmer 8s linear infinite;
+  }
+
+  /* Heat glow intensity levels based on bid activity */
+  .glow-heat-low {
+    box-shadow: 0 0 0 0 transparent;
+    transition: box-shadow 0.3s ease-in-out;
+  }
+
+  .glow-heat-medium {
+    box-shadow:
+      0 0 12px -2px rgba(251, 191, 36, 0.3),
+      0 0 24px -4px rgba(251, 191, 36, 0.15);
+    transition: box-shadow 0.3s ease-in-out;
+  }
+
+  .dark .glow-heat-medium {
+    box-shadow:
+      0 0 16px -2px rgba(251, 191, 36, 0.4),
+      0 0 32px -4px rgba(251, 191, 36, 0.2);
+  }
+
+  .glow-heat-high {
+    box-shadow:
+      0 0 16px -2px rgba(239, 68, 68, 0.4),
+      0 0 32px -4px rgba(239, 68, 68, 0.2),
+      0 0 48px -6px rgba(239, 68, 68, 0.1);
+    transition: box-shadow 0.3s ease-in-out;
+  }
+
+  .dark .glow-heat-high {
+    box-shadow:
+      0 0 20px -2px rgba(239, 68, 68, 0.5),
+      0 0 40px -4px rgba(239, 68, 68, 0.3),
+      0 0 60px -6px rgba(239, 68, 68, 0.15);
+  }
+
+  /* Card hover elevation - financial tile style with enhanced shadow */
+  .hover-elevate-card {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .hover-elevate-card:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      0 4px 6px -1px rgba(0, 0, 0, 0.1),
+      0 2px 4px -1px rgba(0, 0, 0, 0.06),
+      0 12px 24px -8px rgba(0, 0, 0, 0.12);
+  }
+
+  .dark .hover-elevate-card:hover {
+    box-shadow:
+      0 4px 6px -1px rgba(0, 0, 0, 0.3),
+      0 2px 4px -1px rgba(0, 0, 0, 0.2),
+      0 12px 24px -8px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Status dot pulse animation */
+  @keyframes status-pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scale(1.1);
+    }
+  }
+
+  .status-pulse {
+    animation: status-pulse 2s ease-in-out infinite;
+  }
+
+  /* Gradient overlay for live species bar */
+  .species-bar-live::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.15) 50%,
+      transparent 100%
+    );
+    pointer-events: none;
+  }
+
+  .species-bar-live.animate-shimmer::after {
+    background-size: 200% 100%;
+    animation: shimmer 8s linear infinite;
+  }
+
+  /* Price trend pill styles */
+  .trend-up {
+    @apply bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30;
+  }
+
+  .trend-down {
+    @apply bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/30;
+  }
+
+  .trend-flat {
+    @apply bg-muted/60 text-muted-foreground border border-border/40;
+  }
+
+  /* ==========================================
+   * REAL-TIME PRICE FLICKER EFFECTS
+   * ========================================== */
+
+  /* Price flash up - emerald green flash for price increases */
+  @keyframes price-flash-up {
+    0% {
+      background-color: rgba(16, 185, 129, 0.6);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: 0 0 0 transparent;
+    }
+  }
+
+  .price-flash-up {
+    animation: price-flash-up 0.6s ease-out;
+  }
+
+  .dark .price-flash-up {
+    animation: price-flash-up-dark 0.6s ease-out;
+  }
+
+  @keyframes price-flash-up-dark {
+    0% {
+      background-color: rgba(16, 185, 129, 0.5);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: 0 0 0 transparent;
+    }
+  }
+
+  /* Price flash down - red flash for price decreases */
+  @keyframes price-flash-down {
+    0% {
+      background-color: rgba(239, 68, 68, 0.6);
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: 0 0 0 transparent;
+    }
+  }
+
+  .price-flash-down {
+    animation: price-flash-down 0.6s ease-out;
+  }
+
+  .dark .price-flash-down {
+    animation: price-flash-down-dark 0.6s ease-out;
+  }
+
+  @keyframes price-flash-down-dark {
+    0% {
+      background-color: rgba(239, 68, 68, 0.5);
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: 0 0 0 transparent;
+    }
+  }
+
+  /* Price shake - micro shake for high volatility (>10% change) */
+  @keyframes price-shake {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-2px);
+    }
+    75% {
+      transform: translateX(2px);
+    }
+  }
+
+  .price-shake {
+    animation: price-shake 0.2s ease-in-out;
+  }
+
+  /* Combined shake + flash for extreme volatility */
+  .price-flash-up.price-shake {
+    animation: price-flash-up 0.6s ease-out, price-shake 0.2s ease-in-out;
+  }
+
+  .price-flash-down.price-shake {
+    animation: price-flash-down 0.6s ease-out, price-shake 0.2s ease-in-out;
+  }
+
+  /* GPU optimization for price animations */
+  .price-flash-up,
+  .price-flash-down,
+  .price-shake {
+    will-change: background-color, transform;
+  }
 }

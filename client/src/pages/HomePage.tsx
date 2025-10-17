@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Auction, AuctionFilters, regions, speciesTypes } from "@shared/schema";
+import { Auction, AuctionFilters } from "@shared/schema";
 import { DualViewAuctionFeed } from "@/components/auction-feed";
+import { AuctionFilterPanel } from "@/components/AuctionFilterPanel";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Filter } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,14 +17,86 @@ export default function HomePage() {
   const { data: allAuctions, isLoading } = useQuery<Auction[]>({
     queryKey: ["/api/auctions/feed"],
     enabled: !!userData,
+    refetchInterval: 2000, // Auto-refresh every 2 seconds for real-time price updates
   });
 
   // Apply filters and sorting client-side
-  const auctions = allAuctions
-    ?.filter(a => a.status === "active" || a.status === "upcoming")
-    .filter(a => !filters.region || a.region === filters.region)
-    .filter(a => !filters.species || a.speciesBreakdown.some(s => s.species === filters.species))
-    .sort((a, b) => a.endTime - b.endTime);
+  const auctions = useMemo(() => {
+    if (!allAuctions) return undefined;
+
+    let filtered = allAuctions
+      .filter(a => a.status === "active" || a.status === "upcoming");
+
+    // Apply filters
+    if (filters.region) {
+      filtered = filtered.filter(a => a.region === filters.region);
+    }
+
+    if (filters.species) {
+      filtered = filtered.filter(a =>
+        a.speciesBreakdown.some(s => s.species === filters.species)
+      );
+    }
+
+    if (filters.minVolume !== undefined) {
+      filtered = filtered.filter(a => a.volumeM3 >= filters.minVolume!);
+    }
+
+    if (filters.maxVolume !== undefined) {
+      filtered = filtered.filter(a => a.volumeM3 <= filters.maxVolume!);
+    }
+
+    if (filters.minDiameter !== undefined && filters.minDiameter > 0) {
+      filtered = filtered.filter(a =>
+        a.apvAverageDiameter !== undefined && a.apvAverageDiameter >= filters.minDiameter!
+      );
+    }
+
+    if (filters.maxDiameter !== undefined && filters.maxDiameter > 0) {
+      filtered = filtered.filter(a =>
+        a.apvAverageDiameter !== undefined && a.apvAverageDiameter <= filters.maxDiameter!
+      );
+    }
+
+    if (filters.minPrice !== undefined) {
+      filtered = filtered.filter(a => a.currentPricePerM3 >= filters.minPrice!);
+    }
+
+    if (filters.maxPrice !== undefined) {
+      filtered = filtered.filter(a => a.currentPricePerM3 <= filters.maxPrice!);
+    }
+
+    if (filters.treatmentType && filters.treatmentType.trim()) {
+      const searchTerm = filters.treatmentType.toLowerCase();
+      filtered = filtered.filter(a =>
+        a.apvTreatmentType?.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    // Apply sorting
+    const sortBy = filters.sortBy || "endTime";
+
+    switch (sortBy) {
+      case "volumeAsc":
+        filtered.sort((a, b) => a.volumeM3 - b.volumeM3);
+        break;
+      case "volumeDesc":
+        filtered.sort((a, b) => b.volumeM3 - a.volumeM3);
+        break;
+      case "priceAsc":
+        filtered.sort((a, b) => a.currentPricePerM3 - b.currentPricePerM3);
+        break;
+      case "priceDesc":
+        filtered.sort((a, b) => b.currentPricePerM3 - a.currentPricePerM3);
+        break;
+      case "endTime":
+      default:
+        filtered.sort((a, b) => a.endTime - b.endTime);
+        break;
+    }
+
+    return filtered;
+  }, [allAuctions, filters]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -51,48 +123,13 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Select
-              value={filters.region || "all"}
-              onValueChange={(value) => setFilters(prev => ({ ...prev, region: value === "all" ? undefined : value as any }))}
-            >
-              <SelectTrigger className="w-[160px]" data-testid="select-region">
-                <SelectValue placeholder="All Regions" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Regions</SelectItem>
-                {regions.map(region => (
-                  <SelectItem key={region} value={region}>{region}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={filters.species || "all"}
-              onValueChange={(value) => setFilters(prev => ({ ...prev, species: value === "all" ? undefined : value as any }))}
-            >
-              <SelectTrigger className="w-[160px]" data-testid="select-species">
-                <SelectValue placeholder="All Species" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Species</SelectItem>
-                {speciesTypes.map(species => (
-                  <SelectItem key={species} value={species}>{species}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {(filters.region || filters.species) && (
-              <Button
-                variant="outline"
-                size="default"
-                onClick={() => setFilters({})}
-                data-testid="button-clear-filters"
-              >
-                Clear Filters
-              </Button>
-            )}
-          </div>
+          {/* Filter Panel */}
+          <AuctionFilterPanel
+            filters={filters}
+            onFiltersChange={setFilters}
+            totalCount={allAuctions?.filter(a => a.status === "active" || a.status === "upcoming").length || 0}
+            filteredCount={auctions?.length || 0}
+          />
         </div>
       </div>
 
@@ -116,8 +153,8 @@ export default function HomePage() {
             <Filter className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
             <h3 className="text-xl font-semibold mb-2">No auctions found</h3>
             <p className="text-muted-foreground mb-6">
-              {filters.region || filters.species 
-                ? "Try adjusting your filters" 
+              {Object.keys(filters).some(key => key !== 'sortBy' && filters[key as keyof AuctionFilters])
+                ? "Try adjusting your filters or clear them to see all auctions"
                 : "Be the first to create a listing"}
             </p>
             {userData?.role === "forest_owner" && (

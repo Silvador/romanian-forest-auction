@@ -1,6 +1,4 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { collection, query, where, orderBy, getDocs, doc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { Notification } from "@shared/schema";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
@@ -13,30 +11,48 @@ import { Button } from "@/components/ui/button";
 import { queryClient } from "@/lib/queryClient";
 
 export default function NotificationsPage() {
-  const { userData } = useAuth();
+  const { userData, currentUser } = useAuth();
 
   const { data: notifications, isLoading } = useQuery<Notification[]>({
     queryKey: ["/api/notifications", userData?.id],
     queryFn: async () => {
-      if (!userData?.id) return [];
-      
-      const q = query(
-        collection(db, "notifications"),
-        where("userId", "==", userData.id),
-        orderBy("timestamp", "desc")
-      );
-      
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Notification));
+      if (!currentUser) return [];
+
+      const token = await currentUser.getIdToken();
+      const response = await fetch("/api/notifications", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch notifications");
+      }
+
+      return response.json();
     },
-    enabled: !!userData?.id,
+    enabled: !!currentUser,
   });
 
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationId: string) => {
-      await updateDoc(doc(db, "notifications", notificationId), {
-        read: true,
+      if (!currentUser) throw new Error("Not authenticated");
+
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`/api/notifications/${notificationId}/read`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       });
+
+      if (!response.ok) {
+        throw new Error("Failed to mark notification as read");
+      }
+
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
@@ -45,9 +61,20 @@ export default function NotificationsPage() {
 
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
+      if (!currentUser) throw new Error("Not authenticated");
+
+      const token = await currentUser.getIdToken();
       const unread = notifications?.filter(n => !n.read) || [];
       await Promise.all(
-        unread.map(n => updateDoc(doc(db, "notifications", n.id), { read: true }))
+        unread.map(n =>
+          fetch(`/api/notifications/${n.id}/read`, {
+            method: "PATCH",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          })
+        )
       );
     },
     onSuccess: () => {

@@ -25,7 +25,49 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 
 // Auction schema
 export const auctionStatus = ["draft", "upcoming", "active", "ended", "sold"] as const;
-export const speciesTypes = ["Stejar", "Gorun", "Fag", "Molid", "Pin", "Paltin", "Frasin"] as const;
+export const speciesTypes = [
+  // Hardwood species (Foioase)
+  "Stejar pedunculat",
+  "Stejar brumăriu",
+  "Gorun",
+  "Cer",
+  "Fag",
+  "Carpen",
+  "Frasin",
+  "Jugastru",
+  "Paltin de câmp",
+  "Paltin de munte",
+  "Tei argintiu",
+  "Tei cu frunze mari",
+  "Ulm de câmp",
+  "Ulm de munte",
+  "Anin alb",
+  "Anin negru",
+  "Mesteacăn",
+  "Plop tremurător",
+  "Plop alb",
+  "Plop negru",
+  "Salcie albă",
+  "Salcâm",
+  "Cireș sălbatic",
+  "Măr sălbatic",
+  "Păr sălbatic",
+  "Sorb de munte",
+  "Nuc",
+  "Castanul",
+
+  // Coniferous species (Răşinoase)
+  "Molid",
+  "Brad",
+  "Pin silvestru",
+  "Pin negru",
+  "Larice",
+  "Zâmbru",
+  "Tisă",
+
+  // Other/Generic
+  "Altele"
+] as const;
 export const regions = [
   "Maramureș",
   "Transilvania",
@@ -40,6 +82,7 @@ export const regions = [
 export interface SpeciesBreakdown {
   species: typeof speciesTypes[number];
   percentage: number;
+  volumeM3?: number; // Volume in cubic meters for this species
 }
 
 export interface Auction {
@@ -194,12 +237,20 @@ export interface Notification {
 export type InsertNotification = Omit<Notification, "id">;
 
 // Filter types for auction feed
+export type SortOption = "endTime" | "volumeAsc" | "volumeDesc" | "priceAsc" | "priceDesc";
+
 export interface AuctionFilters {
   region?: typeof regions[number];
   species?: typeof speciesTypes[number];
   minVolume?: number;
   maxVolume?: number;
+  minDiameter?: number;
+  maxDiameter?: number;
+  minPrice?: number;
+  maxPrice?: number;
+  treatmentType?: string;
   status?: typeof auctionStatus[number];
+  sortBy?: SortOption;
 }
 
 // Dashboard stats
@@ -254,3 +305,61 @@ export interface ApvExtractionResult {
   slopePercent?: number;
   rawText?: string;
 }
+
+// Price Alert schema (Phase 3)
+export const alertTypes = ["price_below", "price_above", "volume_threshold"] as const;
+
+export interface PriceAlert {
+  id: string;
+  userId: string;
+  species?: typeof speciesTypes[number];
+  region?: typeof regions[number];
+  alertType: typeof alertTypes[number];
+  threshold: number;
+  active: boolean;
+  createdAt: number;
+  lastTriggered?: number;
+}
+
+export const insertPriceAlertSchema = z.object({
+  species: z.enum(speciesTypes).optional(),
+  region: z.enum(regions).optional(),
+  alertType: z.enum(alertTypes),
+  threshold: z.number().min(0.1),
+  active: z.boolean().default(true),
+});
+
+export type InsertPriceAlert = z.infer<typeof insertPriceAlertSchema>;
+
+// Watchlist Preset schema (Phase 3)
+export interface WatchlistPreset {
+  id: string;
+  userId: string;
+  name: string;
+  filters: {
+    species: typeof speciesTypes[number][];
+    regions: typeof regions[number][];
+    minVolume?: number;
+    maxVolume?: number;
+    minPrice?: number;
+    maxPrice?: number;
+    dateRange: "7d" | "30d" | "90d" | "1y" | "all";
+  };
+  createdAt: number;
+  lastUsed?: number;
+}
+
+export const insertWatchlistPresetSchema = z.object({
+  name: z.string().min(1).max(50),
+  filters: z.object({
+    species: z.array(z.enum(speciesTypes)),
+    regions: z.array(z.enum(regions)),
+    minVolume: z.number().optional(),
+    maxVolume: z.number().optional(),
+    minPrice: z.number().optional(),
+    maxPrice: z.number().optional(),
+    dateRange: z.enum(["7d", "30d", "90d", "1y", "all"]),
+  }),
+});
+
+export type InsertWatchlistPreset = z.infer<typeof insertWatchlistPresetSchema>;
