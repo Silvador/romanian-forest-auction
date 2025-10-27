@@ -383,16 +383,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const totalAuctions = myAuctions.length;
       const activeAuctions = myAuctions.filter(a => a.status === "active").length;
-      const completedAuctions = myAuctions.filter(a => a.status === "completed").length;
-      
+      const completedAuctions = myAuctions.filter(a => a.status === "ended" || a.status === "sold").length;
+
       const totalBids = myAuctions.reduce((sum, a) => sum + (a.bidCount || 0), 0);
       const avgBidsPerAuction = totalAuctions > 0 ? totalBids / totalAuctions : 0;
-      
-      const completedWithBids = myAuctions.filter(a => a.status === "completed" && (a.bidCount || 0) > 0);
-      const avgPrice = completedWithBids.length > 0 
-        ? completedWithBids.reduce((sum, a) => sum + (a.currentPricePerM3 || 0), 0) / completedWithBids.length
+
+      const completedWithBids = myAuctions.filter(a => (a.status === "ended" || a.status === "sold") && (a.bidCount || 0) > 0);
+      const avgPrice = completedWithBids.length > 0
+        ? completedWithBids.reduce((sum, a) => sum + (a.currentPricePerM3 || a.startingPricePerM3 || 0), 0) / completedWithBids.length
         : 0;
-      
+
       const successRate = totalAuctions > 0 ? (completedWithBids.length / totalAuctions) * 100 : 0;
 
       res.json({

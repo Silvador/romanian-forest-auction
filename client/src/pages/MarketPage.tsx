@@ -176,7 +176,7 @@ export default function MarketPage() {
         trends.map(t => ({
           date: t.date,
           species,
-          pricePerM3: parseFloat(t.pricePerM3.toFixed(2))
+          pricePerM3: typeof t.pricePerM3 === 'number' ? parseFloat(t.pricePerM3.toFixed(2)) : parseFloat(t.pricePerM3 || 0)
         }))
       )
       .reduce((acc, item) => {
@@ -202,7 +202,7 @@ export default function MarketPage() {
     const regionalData = displayData.avgPriceByRegion
       .map(r => ({
         region: r.region,
-        avgPricePerM3: parseFloat(r.avgPricePerM3.toFixed(2))
+        avgPricePerM3: typeof r.avgPricePerM3 === 'number' ? parseFloat(r.avgPricePerM3.toFixed(2)) : parseFloat(r.avgPricePerM3 || 0)
       }))
       .sort((a, b) => b.avgPricePerM3 - a.avgPricePerM3);
 

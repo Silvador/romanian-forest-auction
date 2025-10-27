@@ -31,6 +31,7 @@ const speciesMapping: Record<string, string> = {
   "GORUN": "Gorun",
   "GORUNUL": "Gorun",
   "GORUNI": "Gorun",
+  "GORUN (L)": "Gorun",
   "CER": "Cer",
   "CERUL": "Cer",
   "CERULUI": "Cer",

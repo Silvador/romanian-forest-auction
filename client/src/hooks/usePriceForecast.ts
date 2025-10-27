@@ -49,7 +49,7 @@ export function usePriceForecast({
     // 1. Prepare historical data
     const historicalData: HistoricalPoint[] = sortedTrends.map(t => ({
       date: t.date,
-      actual: parseFloat(t.pricePerM3.toFixed(2)),
+      actual: typeof t.pricePerM3 === 'number' ? parseFloat(t.pricePerM3.toFixed(2)) : parseFloat(t.pricePerM3 || 0),
     }));
 
     // 2. Calculate moving average
