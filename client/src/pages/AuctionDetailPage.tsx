@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Auction, Bid } from "@shared/schema";
@@ -8,7 +8,12 @@ import { Card } from "@/components/ui/card";
 import { BidModal } from "@/components/BidModal";
 import { MapPin, Calendar, TrendingUp, Clock, FileText, ChevronLeft } from "lucide-react";
 import { formatVolume, formatTimeRemaining, isAuctionEndingSoon, getRelativeTime } from "@/utils/formatters";
-import { formatPricePerM3, formatProjectedTotal, calculateProjectedTotal } from "@/utils/incrementLadder";
+import {
+  formatPricePerM3,
+  formatProjectedTotal,
+  calculateProjectedTotal,
+  getSpeciesIncrement,
+} from "@/utils/incrementLadder";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,14 +26,21 @@ export default function AuctionDetailPage() {
   const { toast } = useToast();
   const [bidModalOpen, setBidModalOpen] = useState(false);
 
-  const { data: auction, isLoading } = useQuery<Auction>({
+  const {
+    data: auction,
+    isLoading,
+    dataUpdatedAt,
+    isFetching,
+  } = useQuery<Auction>({
     queryKey: [`/api/auctions/${id}`],
     enabled: !!id && !!userData,
+    refetchInterval: 15000,
   });
 
   const { data: bids } = useQuery<Bid[]>({
     queryKey: [`/api/bids/${id}`],
     enabled: !!id && !!userData,
+    refetchInterval: 10000,
   });
 
   const handlePlaceBid = async (amountPerM3: number, maxProxyPerM3: number) => {
@@ -55,6 +67,29 @@ export default function AuctionDetailPage() {
     );
   }
 
+  const [timeRemaining, setTimeRemaining] = useState("");
+  const [isEndingSoon, setIsEndingSoon] = useState(false);
+  const [prefillValues, setPrefillValues] = useState<{ bid: number; proxy: number } | null>(null);
+
+  useEffect(() => {
+    if (!auction) return;
+
+    const updateTime = () => {
+      setTimeRemaining(formatTimeRemaining(auction.endTime));
+      setIsEndingSoon(isAuctionEndingSoon(auction.endTime));
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [auction?.endTime]);
+
+  useEffect(() => {
+    if (!bidModalOpen) {
+      setPrefillValues(null);
+    }
+  }, [bidModalOpen]);
+
   if (!auction) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -68,13 +103,11 @@ export default function AuctionDetailPage() {
     );
   }
 
-  const timeRemaining = formatTimeRemaining(auction.endTime);
-  const isEndingSoon = isAuctionEndingSoon(auction.endTime);
   const now = Date.now();
   const isAuctionLive = now >= auction.startTime && now < auction.endTime;
   const canBid = userData?.role === "buyer" && userData?.id !== auction.ownerId;
   const isOwner = userData?.id === auction.ownerId;
-  
+
   // Fallback for old data format: calculate from currentBid/startingPrice if new fields don't exist
   const currentPricePerM3 = auction.currentPricePerM3 ?? ((auction as any).currentBid ? (auction as any).currentBid / auction.volumeM3 : 0);
   const startingPricePerM3 = auction.startingPricePerM3 ?? ((auction as any).startingPrice ? (auction as any).startingPrice / auction.volumeM3 : 0);
@@ -83,6 +116,33 @@ export default function AuctionDetailPage() {
   const isUserLeading = userData?.id === auction.currentBidderId;
   const userHasBid = bids?.some(bid => bid.bidderId === userData?.id);
   const wasOutbid = userHasBid && !isUserLeading;
+
+  const latestUserBid = useMemo(() => {
+    if (!bids || !userData?.id) return undefined;
+    return [...bids]
+      .filter(bid => bid.bidderId === userData.id)
+      .sort((a, b) => b.timestamp - a.timestamp)[0];
+  }, [bids, userData?.id]);
+
+  const userMaxProxyPerM3 = latestUserBid?.maxProxyPerM3 ?? latestUserBid?.amountPerM3 ?? 0;
+  const userBidPerM3 = latestUserBid?.amountPerM3 ?? 0;
+  const bufferPerM3 = userMaxProxyPerM3 - currentPricePerM3;
+  const dominantSpecies = auction.dominantSpecies || "";
+  const speciesIncrement = getSpeciesIncrement(dominantSpecies);
+  const minimumNextBid = currentPricePerM3 + speciesIncrement;
+  const suggestedProxyRaise = Math.max(userMaxProxyPerM3, minimumNextBid) + speciesIncrement;
+  const dataFreshness = dataUpdatedAt ? getRelativeTime(dataUpdatedAt) : "—";
+
+  const bufferStatus = bufferPerM3 <= 0 ? "danger" : bufferPerM3 <= speciesIncrement ? "warning" : "safe";
+
+  const openBidModal = (prefill?: { bid: number; proxy: number }) => {
+    if (prefill) {
+      setPrefillValues(prefill);
+    } else {
+      setPrefillValues(null);
+    }
+    setBidModalOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-background pb-40">
@@ -96,19 +156,44 @@ export default function AuctionDetailPage() {
 
         {/* Live Status Banners */}
         {canBid && isAuctionLive && isUserLeading && (
-          <div className="mb-4 p-4 bg-primary/10 border-2 border-primary rounded-md animate-pulse" data-testid="banner-leading">
+          <div
+            className="mb-4 p-4 bg-primary/10 border-2 border-primary rounded-md animate-pulse"
+            data-testid="banner-leading"
+          >
             <div className="flex items-center gap-3">
               <TrendingUp className="w-6 h-6 text-primary" />
               <div>
                 <h3 className="text-lg font-bold text-primary">YOU ARE LEADING</h3>
-                <p className="text-sm text-muted-foreground">Your proxy bid is currently the highest</p>
+                <p className="text-sm text-muted-foreground">
+                  Max proxy {formatPricePerM3(userMaxProxyPerM3)} • Buffer {formatPricePerM3(Math.max(bufferPerM3, 0))}
+                </p>
               </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() =>
+                  openBidModal({
+                    bid: minimumNextBid,
+                    proxy: suggestedProxyRaise,
+                  })
+                }
+              >
+                Raise max proxy
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => openBidModal()}>
+                Review bid details
+              </Button>
             </div>
           </div>
         )}
 
         {canBid && isAuctionLive && wasOutbid && (
-          <div className="mb-4 p-4 bg-destructive/10 border-2 border-destructive rounded-md animate-pulse" data-testid="banner-outbid">
+          <div
+            className="mb-4 p-4 bg-destructive/10 border-2 border-destructive rounded-md animate-pulse"
+            data-testid="banner-outbid"
+          >
             <div className="flex items-center gap-3">
               <TrendingUp className="w-6 h-6 text-destructive rotate-180" />
               <div>
@@ -117,6 +202,23 @@ export default function AuctionDetailPage() {
                   Current: {formatPricePerM3(currentPricePerM3)} ({formatProjectedTotal(calculateProjectedTotal(currentPricePerM3, auction.volumeM3))} total)
                 </p>
               </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button
+                size="sm"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() =>
+                  openBidModal({
+                    bid: minimumNextBid,
+                    proxy: Math.max(suggestedProxyRaise, minimumNextBid + speciesIncrement),
+                  })
+                }
+              >
+                Bid {formatPricePerM3(minimumNextBid)} now
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                You’re behind by {formatPricePerM3(Math.max(minimumNextBid - userMaxProxyPerM3, speciesIncrement))}
+              </p>
             </div>
           </div>
         )}
@@ -168,11 +270,23 @@ export default function AuctionDetailPage() {
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">Time Remaining</div>
-                  <div className={`text-2xl font-bold ${isEndingSoon ? 'text-destructive' : ''}`} data-testid="text-time-remaining">
-                    <Clock className="w-5 h-5 inline mr-2" />
-                    {timeRemaining}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-muted-foreground">Time Remaining</div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <span className={`w-2 h-2 rounded-full ${isFetching ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                        Auto-refreshing
+                      </span>
+                      <span>Updated {dataFreshness}</span>
+                    </div>
+                  </div>
+                  <div
+                    className={`text-2xl font-bold flex items-center gap-2 ${isEndingSoon ? "text-destructive" : ""}`}
+                    data-testid="text-time-remaining"
+                  >
+                    <Clock className="w-5 h-5" />
+                    <span>{timeRemaining}</span>
                   </div>
                 </div>
                 <div>
@@ -580,24 +694,74 @@ export default function AuctionDetailPage() {
 
       {canBid && !bidModalOpen && (
         <div className="fixed bottom-16 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border p-4 z-10">
-          <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-            <div>
-              <div className="text-sm text-muted-foreground">Current Price</div>
-              <div className="text-2xl font-bold text-primary">
-                {formatPricePerM3(currentPricePerM3)}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {formatProjectedTotal(calculateProjectedTotal(currentPricePerM3, auction.volumeM3))} total
+          <div className="max-w-4xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                <div>
+                  <div className="uppercase tracking-wide text-xs text-muted-foreground/80">Current price</div>
+                  <div className="text-2xl font-bold text-primary">
+                    {formatPricePerM3(currentPricePerM3)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatProjectedTotal(calculateProjectedTotal(currentPricePerM3, auction.volumeM3))} total
+                  </div>
+                </div>
+                {latestUserBid && (
+                  <div className="flex flex-col gap-1">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground/80">Your max proxy</div>
+                    <div className="text-base font-semibold">
+                      {formatPricePerM3(userMaxProxyPerM3)}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-muted-foreground">Buffer</span>
+                      <Badge
+                        variant={
+                          bufferStatus === "danger"
+                            ? "destructive"
+                            : bufferStatus === "warning"
+                              ? "secondary"
+                              : "default"
+                        }
+                      >
+                        {bufferPerM3 > 0 ? formatPricePerM3(bufferPerM3) : "At risk"}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+                {latestUserBid && (
+                  <div className="flex flex-col gap-1">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground/80">Last bid</div>
+                    <div className="text-base font-semibold">{formatPricePerM3(userBidPerM3)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {getRelativeTime(latestUserBid.timestamp)}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            <Button
-              size="lg"
-              className="h-14 px-8 text-lg font-semibold"
-              onClick={() => setBidModalOpen(true)}
-              data-testid="button-place-bid"
-            >
-              Place Bid
-            </Button>
+            <div className="flex items-center gap-3">
+              {latestUserBid && (
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    openBidModal({
+                      bid: minimumNextBid,
+                      proxy: suggestedProxyRaise,
+                    })
+                  }
+                >
+                  Quick raise
+                </Button>
+              )}
+              <Button
+                size="lg"
+                className="h-14 px-8 text-lg font-semibold"
+                onClick={() => openBidModal()}
+                data-testid="button-place-bid"
+              >
+                Place Bid
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -608,6 +772,8 @@ export default function AuctionDetailPage() {
           open={bidModalOpen}
           onOpenChange={setBidModalOpen}
           onPlaceBid={handlePlaceBid}
+          initialBidPerM3={prefillValues?.bid}
+          initialMaxProxyPerM3={prefillValues?.proxy}
         />
       )}
     </div>
