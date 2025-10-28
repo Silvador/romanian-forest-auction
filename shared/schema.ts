@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+export const documentMetadataSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  mimeType: z.string(),
+  size: z.number().nonnegative(),
+  storagePath: z.string(),
+  downloadUrl: z.string().url(),
+  apvDocumentId: z.string().optional(),
+});
+
+export type DocumentMetadata = z.infer<typeof documentMetadataSchema>;
+
 // User schema
 export const userRoles = ["forest_owner", "buyer"] as const;
 export const kycStatus = ["pending", "verified", "rejected"] as const;
@@ -107,7 +119,7 @@ export interface Auction {
   highestMaxProxyPerM3?: number; // Highest proxy bid (€/m³)
   status: typeof auctionStatus[number];
   imageUrls: string[];
-  documentUrls: string[];
+  documents: DocumentMetadata[];
   startTime: number;
   endTime: number;
   originalEndTime: number; // Track original end time before soft-close extensions
@@ -166,7 +178,7 @@ export const insertAuctionSchema = z.object({
   volumeM3: z.coerce.number().min(1, "Volume must be at least 1 m³"),
   startingPricePerM3: z.coerce.number().min(0.1, "Starting price must be at least €0.1/m³"),
   imageUrls: z.array(z.string()).optional(),
-  documentUrls: z.array(z.string()).optional(),
+  documents: z.array(documentMetadataSchema).optional(),
   startTime: z.number(),
   endTime: z.number(),
   apvPermitNumber: z.string().optional(),

@@ -1,6 +1,6 @@
 import { collection, addDoc, updateDoc, doc, increment, getDoc } from "firebase/firestore";
 import { db, auth } from "./firebase";
-import { InsertAuction, InsertBid } from "@shared/schema";
+import { InsertAuction, InsertBid, DocumentMetadata } from "@shared/schema";
 
 export async function createAuctionFirestore(data: InsertAuction, status: "draft" | "upcoming" = "upcoming") {
   const user = auth.currentUser;
@@ -23,7 +23,7 @@ export async function createAuctionFirestore(data: InsertAuction, status: "draft
     bidCount: 0,
     createdAt: Date.now(),
     imageUrls: data.imageUrls || [],
-    documentUrls: data.documentUrls || [],
+    documents: (data.documents as DocumentMetadata[] | undefined) || [],
   };
 
   const auctionRef = await addDoc(collection(db, "auctions"), auctionData);

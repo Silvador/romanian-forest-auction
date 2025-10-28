@@ -1,7 +1,15 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertAuctionSchema, regions, speciesTypes, InsertAuction, SpeciesBreakdown, ApvExtractionResult } from "@shared/schema";
+import {
+  insertAuctionSchema,
+  regions,
+  speciesTypes,
+  InsertAuction,
+  SpeciesBreakdown,
+  ApvExtractionResult,
+  DocumentMetadata,
+} from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +21,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLocation, Link } from "wouter";
 import { ChevronLeft, Plus, X, Upload, FileText, Scan } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import {
+  requestSignedUpload,
+  confirmDocumentUpload,
+} from "@/lib/document-api";
 import { createAuctionFirestore } from "@/lib/firestore-operations";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -28,6 +40,7 @@ export default function CreateListingPage() {
   const [isOcrProcessing, setIsOcrProcessing] = useState(false);
   const [ocrResult, setOcrResult] = useState<ApvExtractionResult | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [documents, setDocuments] = useState<DocumentMetadata[]>([]);
   const [showManualEntry, setShowManualEntry] = useState(false);
 
   // Timer controls for testing
@@ -47,6 +60,7 @@ export default function CreateListingPage() {
       speciesBreakdown: [],
       startTime: Date.now() + 60000, // Start in 1 minute
       endTime: Date.now() + 60000 + (7 * 24 * 3600000), // + 7 days
+      documents: [],
     },
   });
 
@@ -201,6 +215,54 @@ export default function CreateListingPage() {
         title: "APV data extracted!",
         description: `Found ${result.volumeM3} m³ of ${result.species}${result.numberOfTrees ? ` (${result.numberOfTrees} trees)` : ""}`,
       });
+
+      try {
+        const uploadSession = await requestSignedUpload({
+          fileName: file.name,
+          mimeType: file.type,
+          size: file.size,
+          auctionId: null,
+          apvDocumentId: result.permitNumber || null,
+        });
+
+        const headers = new Headers(uploadSession.requiredHeaders || {});
+        if (!headers.has("Content-Type")) {
+          headers.set("Content-Type", file.type);
+        }
+
+        const uploadResponse = await fetch(uploadSession.uploadUrl, {
+          method: "PUT",
+          headers,
+          body: file,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Upload failed with status ${uploadResponse.status}`);
+        }
+
+        const confirmation = await confirmDocumentUpload({
+          documentId: uploadSession.documentId,
+          name: file.name,
+          mimeType: file.type,
+          size: file.size,
+          storagePath: uploadSession.storagePath,
+          auctionId: null,
+          apvDocumentId: result.permitNumber || null,
+        });
+
+        setDocuments(prev => {
+          const updated = [...prev.filter(doc => doc.id !== confirmation.metadata.id), confirmation.metadata];
+          form.setValue("documents", updated);
+          return updated;
+        });
+      } catch (uploadError: any) {
+        console.error("Upload error:", uploadError);
+        toast({
+          title: "Failed to upload document",
+          description: uploadError.message || "Unable to upload APV document",
+          variant: "destructive",
+        });
+      }
     } catch (error: any) {
       console.error("OCR error:", error);
       toast({
@@ -236,7 +298,7 @@ export default function CreateListingPage() {
         ...data,
         speciesBreakdown: speciesBreakdown.filter(s => s.percentage > 0),
         imageUrls: data.imageUrls || [],
-        documentUrls: data.documentUrls || [],
+        documents,
       };
       console.log("Auction data:", auctionData);
 
@@ -540,7 +602,38 @@ export default function CreateListingPage() {
                           onChange={handleFileUpload}
                           data-testid="input-apv-file"
                         />
-                        
+
+                        {documents.length > 0 && (
+                          <div className="mt-4 space-y-2" data-testid="list-uploaded-documents">
+                            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                              Uploaded Documents
+                            </h4>
+                            <ul className="space-y-2">
+                              {documents.map((doc) => (
+                                <li key={doc.id} className="flex items-center justify-between gap-4 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="w-4 h-4 text-primary" />
+                                    <div>
+                                      <p className="font-medium leading-tight">{doc.name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {(doc.size / 1024).toFixed(1)} KB • {doc.mimeType}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <a
+                                    href={doc.downloadUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-xs font-semibold text-primary hover:underline"
+                                  >
+                                    Preview
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
                         <div className="mt-4 pt-4 border-t">
                           <Button
                             type="button"

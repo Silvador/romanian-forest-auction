@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Auction, Bid } from "@shared/schema";
+import { Auction, Bid, DocumentMetadata } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -14,12 +14,14 @@ import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { getDocumentDownloadUrl } from "@/lib/document-api";
 
 export default function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { userData } = useAuth();
   const { toast } = useToast();
   const [bidModalOpen, setBidModalOpen] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const { data: auction, isLoading } = useQuery<Auction>({
     queryKey: [`/api/auctions/${id}`],
@@ -37,10 +39,27 @@ export default function AuctionDetailPage() {
       amountPerM3,
       maxProxyPerM3,
     });
-    
+
     // Invalidate queries to refresh auction data and bids after successful bid
     await queryClient.invalidateQueries({ queryKey: [`/api/auctions/${id}`] });
     await queryClient.invalidateQueries({ queryKey: [`/api/bids/${id}`] });
+  };
+
+  const handleDocumentDownload = async (document: DocumentMetadata) => {
+    if (!auction) return;
+    setDownloadingId(document.id);
+    try {
+      const { downloadUrl } = await getDocumentDownloadUrl(auction.id, document.id);
+      window.open(downloadUrl, "_blank", "noopener,noreferrer");
+    } catch (error: any) {
+      toast({
+        title: "Unable to download",
+        description: error.message || "Could not generate download link",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   if (isLoading) {
@@ -403,6 +422,37 @@ export default function AuctionDetailPage() {
               </div>
             </div>
           </Card>
+
+          {auction.documents && auction.documents.length > 0 && (
+            <Card className="p-6">
+              <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
+                Supporting Documents
+              </h3>
+
+              <ul className="space-y-3">
+                {auction.documents.map((document) => (
+                  <li key={document.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{document.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {(document.size / 1024).toFixed(1)} KB • {document.mimeType}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="gap-2 w-full md:w-auto"
+                      onClick={() => handleDocumentDownload(document)}
+                      disabled={downloadingId === document.id}
+                    >
+                      <FileText className="w-4 h-4" />
+                      {downloadingId === document.id ? "Preparing link..." : "Download"}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
           <Card className="p-6">
             <h3 className="font-semibold mb-3">Description</h3>
