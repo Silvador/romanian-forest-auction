@@ -4,6 +4,7 @@ import admin from "firebase-admin";
 import { z } from "zod";
 import { insertAuctionSchema, insertBidSchema, Auction, Bid } from "@shared/schema";
 import { getDocument, setDocument } from "./services/firestoreRestClient";
+import { DocumentService } from "./services/documentService";
 import { extractApvData } from "./services/ocrService";
 import {
   validateBid,
@@ -25,6 +26,7 @@ import {
 // use client-side Firebase SDK with Firestore security rules
 let db: admin.firestore.Firestore | null = null;
 let auctionScheduler: AuctionScheduler | null = null;
+let documentService: DocumentService | null = null;
 
 if (!admin.apps.length) {
   try {
@@ -33,16 +35,18 @@ if (!admin.apps.length) {
     const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
     if (projectId && clientEmail && privateKey) {
+      const bucketName = process.env.AUCTIONS_DOCUMENTS_BUCKET || `${projectId}-auctions-documents`;
       // Force Firestore to use REST instead of gRPC
       process.env.FIRESTORE_EMULATOR_HOST = '';
       process.env.GOOGLE_CLOUD_PROJECT = projectId;
-      
+
       admin.initializeApp({
         credential: admin.credential.cert({
           projectId,
           clientEmail,
           privateKey: privateKey.replace(/\\n/g, '\n'),
         }),
+        storageBucket: bucketName,
       });
       // Use default database (not a named database)
       db = admin.firestore();
@@ -52,6 +56,7 @@ if (!admin.apps.length) {
         // Force REST API usage by disabling gRPC
         useBigInt: false,
       });
+      documentService = new DocumentService(db, bucketName);
       console.log("✅ Firebase Admin initialized successfully");
 
       // Initialize auction scheduler for lifecycle management
@@ -68,12 +73,179 @@ if (!admin.apps.length) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  
+
+  app.post("/api/documents/upload-url", async (req, res) => {
+    try {
+      if (!db || !documentService) {
+        return res.status(503).json({
+          error: "Server-side Firebase not configured. Document uploads are unavailable.",
+        });
+      }
+
+      const token = req.headers.authorization?.split("Bearer ")[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const userDoc = await db.collection("users").doc(userId).get();
+      if (!userDoc.exists) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userData = userDoc.data();
+      if (userData?.role !== "forest_owner") {
+        return res.status(403).json({ error: "Only forest owners can upload documents" });
+      }
+
+      const payload = z.object({
+        auctionId: z.string().optional().nullable(),
+        fileName: z.string(),
+        mimeType: z.string(),
+        size: z.number().int().nonnegative(),
+        apvDocumentId: z.string().optional().nullable(),
+      }).parse(req.body);
+
+      const response = await documentService.requestSignedUpload({
+        ownerId: userId,
+        auctionId: payload.auctionId ?? null,
+        fileName: payload.fileName,
+        mimeType: payload.mimeType,
+        size: payload.size,
+        apvDocumentId: payload.apvDocumentId ?? null,
+      });
+
+      res.json(response);
+    } catch (error: any) {
+      console.error("Error creating upload URL:", error);
+      res.status(error.status || 400).json({ error: error.message || "Failed to create upload URL" });
+    }
+  });
+
+  app.post("/api/documents", async (req, res) => {
+    try {
+      if (!db || !documentService) {
+        return res.status(503).json({
+          error: "Server-side Firebase not configured. Document uploads are unavailable.",
+        });
+      }
+
+      const token = req.headers.authorization?.split("Bearer ")[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const userDoc = await db.collection("users").doc(userId).get();
+      if (!userDoc.exists) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userData = userDoc.data();
+      if (userData?.role !== "forest_owner") {
+        return res.status(403).json({ error: "Only forest owners can upload documents" });
+      }
+
+      const payload = z.object({
+        documentId: z.string(),
+        auctionId: z.string().optional().nullable(),
+        name: z.string(),
+        mimeType: z.string(),
+        size: z.number().int().nonnegative(),
+        storagePath: z.string(),
+        apvDocumentId: z.string().optional().nullable(),
+        replaceExistingApv: z.boolean().optional(),
+      }).parse(req.body);
+
+      const { metadata } = await documentService.persistMetadata({
+        documentId: payload.documentId,
+        ownerId: userId,
+        auctionId: payload.auctionId ?? null,
+        name: payload.name,
+        mimeType: payload.mimeType,
+        size: payload.size,
+        storagePath: payload.storagePath,
+        apvDocumentId: payload.apvDocumentId ?? null,
+      });
+
+      if (payload.auctionId) {
+        await documentService.attachToAuction({
+          auctionId: payload.auctionId,
+          ownerId: userId,
+          metadata,
+          replaceApv: payload.replaceExistingApv ?? Boolean(payload.apvDocumentId),
+        });
+      }
+
+      res.status(201).json({ metadata });
+    } catch (error: any) {
+      console.error("Error persisting document metadata:", error);
+      res.status(error.status || 400).json({ error: error.message || "Failed to save document metadata" });
+    }
+  });
+
+  app.get("/api/auctions/:auctionId/documents/:documentId/download", async (req, res) => {
+    try {
+      if (!db || !documentService) {
+        return res.status(503).json({
+          error: "Server-side Firebase not configured. Document downloads are unavailable.",
+        });
+      }
+
+      const token = req.headers.authorization?.split("Bearer ")[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const userDoc = await db.collection("users").doc(userId).get();
+      if (!userDoc.exists) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userData = userDoc.data();
+      const { auctionId, documentId } = req.params as { auctionId: string; documentId: string };
+
+      const auctionSnap = await db.collection("auctions").doc(auctionId).get();
+      if (!auctionSnap.exists) {
+        return res.status(404).json({ error: "Auction not found" });
+      }
+
+      const auctionData = auctionSnap.data() as any;
+      const isOwner = auctionData.ownerId === userId;
+      const isBuyer = userData?.role === "buyer";
+
+      if (!isOwner && !isBuyer) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      if (isBuyer && auctionData.status === "draft") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const result = await documentService.refreshDownloadUrl({
+        auctionId,
+        documentId,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error generating download URL:", error);
+      res.status(error.status || 400).json({ error: error.message || "Failed to generate download URL" });
+    }
+  });
+
   // Create auction
   app.post("/api/auctions", async (req, res) => {
     try {
       if (!db) {
-        return res.status(503).json({ 
+        return res.status(503).json({
           error: "Server-side Firebase not configured. Please use client SDK to create auctions directly." 
         });
       }
@@ -110,6 +282,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const projectedTotalValue = validatedData.startingPricePerM3 * validatedData.volumeM3;
 
       // Create auction with €/m³ proxy bidding fields
+      const documents = Array.isArray(validatedData.documents) ? validatedData.documents : [];
+
       const auctionData = {
         ...validatedData,
         ownerId: userId,
@@ -124,13 +298,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: req.body.status || "upcoming",
         bidCount: 0,
         createdAt: Date.now(),
+        documents,
       };
 
       const auctionRef = await db.collection("auctions").add(auctionData);
-      
-      res.status(201).json({ 
+
+      if (documentService && documents.length > 0) {
+        for (const metadata of documents) {
+          await documentService.attachToAuction({
+            auctionId: auctionRef.id,
+            ownerId: userId,
+            metadata,
+            replaceApv: Boolean(metadata.apvDocumentId),
+          });
+        }
+      }
+
+      res.status(201).json({
         id: auctionRef.id,
-        ...auctionData 
+        ...auctionData
       });
     } catch (error: any) {
       console.error("Error creating auction:", error);
