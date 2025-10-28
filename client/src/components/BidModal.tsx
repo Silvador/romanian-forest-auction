@@ -20,9 +20,18 @@ interface BidModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPlaceBid: (amountPerM3: number, maxProxyPerM3: number) => Promise<void>;
+  initialBidPerM3?: number | null;
+  initialMaxProxyPerM3?: number | null;
 }
 
-export function BidModal({ auction, open, onOpenChange, onPlaceBid }: BidModalProps) {
+export function BidModal({
+  auction,
+  open,
+  onOpenChange,
+  onPlaceBid,
+  initialBidPerM3,
+  initialMaxProxyPerM3,
+}: BidModalProps) {
   const [bidAmountPerM3, setBidAmountPerM3] = useState("");
   const [maxProxyPerM3, setMaxProxyPerM3] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,9 +92,25 @@ export function BidModal({ auction, open, onOpenChange, onPlaceBid }: BidModalPr
 
   const quickBidIncrements = getQuickBidIncrements(dominantSpecies);
 
+  useEffect(() => {
+    if (!open) {
+      setBidAmountPerM3("");
+      setMaxProxyPerM3("");
+      return;
+    }
+
+    if (typeof initialBidPerM3 === "number" && !isNaN(initialBidPerM3)) {
+      setBidAmountPerM3(String(initialBidPerM3));
+    }
+
+    if (typeof initialMaxProxyPerM3 === "number" && !isNaN(initialMaxProxyPerM3)) {
+      setMaxProxyPerM3(String(initialMaxProxyPerM3));
+    }
+  }, [open, initialBidPerM3, initialMaxProxyPerM3]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!isValidBid) {
       toast({
         title: "Invalid bid amount",
