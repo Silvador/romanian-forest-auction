@@ -40,8 +40,10 @@ export async function setupVite(app: Express, server: Server) {
     appType: "custom",
   });
 
+  console.log("[VITE SETUP] Adding Vite middleware and catch-all");
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
+    console.log("[VITE CATCH-ALL] Hit! Method:", req.method, "URL:", req.originalUrl);
     const url = req.originalUrl;
 
     try {

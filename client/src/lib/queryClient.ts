@@ -35,7 +35,9 @@ export async function apiRequest(
   data?: any
 ): Promise<any> {
   const token = await auth.currentUser?.getIdToken();
-  
+
+  console.log('[API REQUEST]', method, url, 'Auth token:', token ? 'present' : 'missing');
+
   const res = await fetch(url, {
     method,
     headers: {
@@ -45,10 +47,26 @@ export async function apiRequest(
     body: data ? JSON.stringify(data) : undefined,
   });
 
+  console.log('[API RESPONSE]', method, url, 'Status:', res.status, 'Content-Type:', res.headers.get('content-type'));
+
+  const text = await res.text();
+  console.log('[API RESPONSE TEXT]', text.substring(0, 500));
+
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
+    console.error('[API ERROR]', text.substring(0, 500));
+    let errorData: any = {};
+    try {
+      errorData = JSON.parse(text);
+    } catch (e) {
+      // Response is not JSON
+    }
     throw new Error(errorData.error || `Request failed: ${res.status}`);
   }
 
-  return res.json();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.error('[JSON PARSE ERROR]', 'Failed to parse as JSON:', text.substring(0, 500));
+    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
+  }
 }

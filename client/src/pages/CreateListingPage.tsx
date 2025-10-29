@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertAuctionSchema, regions, speciesTypes, InsertAuction, SpeciesBreakdown, ApvExtractionResult } from "@shared/schema";
+import { insertAuctionSchema, regions, speciesTypes, InsertAuction, SpeciesBreakdown, ApvExtractionResult, DocumentMetadata } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +15,9 @@ import { ChevronLeft, Plus, X, Upload, FileText, Scan } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { createAuctionFirestore } from "@/lib/firestore-operations";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DocumentUploader } from "@/components/documents/DocumentUploader";
+import { DocumentCard } from "@/components/documents/DocumentCard";
+import { deleteDocument } from "@/lib/storage";
 
 export default function CreateListingPage() {
   const { userData, loading } = useAuth();
@@ -29,6 +32,11 @@ export default function CreateListingPage() {
   const [ocrResult, setOcrResult] = useState<ApvExtractionResult | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [showManualEntry, setShowManualEntry] = useState(false);
+
+  // Document management
+  const [documents, setDocuments] = useState<DocumentMetadata[]>([]);
+  const [draftAuctionId, setDraftAuctionId] = useState<string | null>(null);
+  const [apvDocumentId, setApvDocumentId] = useState<string | undefined>();
 
   // Timer controls for testing
   const [startInMinutes, setStartInMinutes] = useState(1);
@@ -222,11 +230,43 @@ export default function CreateListingPage() {
     });
   };
 
-  const handlePublish = () => {
+  // Create draft auction to get ID for file uploads
+  const createDraftAuction = async () => {
+    if (draftAuctionId) return draftAuctionId;
+
+    try {
+      const response = await apiRequest("POST", "/api/auctions/draft", {});
+      const id = response.id;
+      setDraftAuctionId(id);
+      return id;
+    } catch (error) {
+      console.error("Failed to create draft auction:", error);
+      toast({
+        title: "Error",
+        description: "Failed to initialize document upload",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
+  const handlePublish = async () => {
     console.log("=== PUBLISH BUTTON CLICKED ===");
     console.log("Form errors:", form.formState.errors);
     console.log("Form values:", form.getValues());
     console.log("Is form valid?", form.formState.isValid);
+
+    // Filter out empty species rows before validation
+    const currentValues = form.getValues();
+    const filteredSpecies = currentValues.speciesBreakdown?.filter(
+      s => s.species && s.percentage > 0
+    ) || [];
+
+    // Update form with filtered species
+    form.setValue('speciesBreakdown', filteredSpecies);
+
+    // Trigger form submission
+    await form.handleSubmit(onSubmit)();
   };
 
   const onSubmit = async (data: InsertAuction) => {
@@ -237,28 +277,50 @@ export default function CreateListingPage() {
         speciesBreakdown: speciesBreakdown.filter(s => s.percentage > 0),
         imageUrls: data.imageUrls || [],
         documentUrls: data.documentUrls || [],
+        documents, // Add uploaded documents
+        apvDocumentId, // Add APV document reference
       };
       console.log("Auction data:", auctionData);
 
-      try {
-        console.log("Trying API...");
-        await apiRequest("POST", "/api/auctions", { 
-          ...auctionData, 
-          status: isDraft ? "draft" : "upcoming" 
-        });
-        console.log("API success");
-      } catch (apiError: any) {
-        console.log("API failed, using Firestore directly:", apiError.message);
-        await createAuctionFirestore(auctionData, isDraft ? "draft" : "upcoming");
-        console.log("Firestore success");
+      let auctionId = draftAuctionId;
+
+      // If we have a draft auction (because documents were uploaded), update it
+      if (draftAuctionId) {
+        try {
+          console.log("Updating draft auction:", draftAuctionId);
+          await apiRequest("PUT", `/api/auctions/${draftAuctionId}`, {
+            ...auctionData,
+            status: isDraft ? "draft" : "upcoming"
+          });
+          console.log("Draft updated successfully");
+        } catch (apiError: any) {
+          console.log("API update failed:", apiError.message);
+          throw apiError;
+        }
+      } else {
+        // No draft auction, create new one
+        try {
+          console.log("Creating new auction...");
+          const response = await apiRequest("POST", "/api/auctions", {
+            ...auctionData,
+            status: isDraft ? "draft" : "upcoming"
+          });
+          auctionId = response.id;
+          console.log("API success, auction ID:", auctionId);
+        } catch (apiError: any) {
+          console.log("API failed, using Firestore directly:", apiError.message);
+          const firestoreResult = await createAuctionFirestore(auctionData, isDraft ? "draft" : "upcoming");
+          auctionId = firestoreResult.id;
+          console.log("Firestore success, auction ID:", auctionId);
+        }
       }
 
       toast({
         title: isDraft ? "Draft saved!" : "Listing created!",
         description: isDraft ? "Your auction has been saved as draft" : "Your auction is now live",
       });
-      console.log("Redirecting to dashboard");
-      setLocation("/dashboard");
+      console.log("Redirecting to auction:", auctionId);
+      setLocation(auctionId ? `/auction/${auctionId}` : "/dashboard");
     } catch (error: any) {
       console.error("Error creating auction:", error);
       toast({
@@ -1298,6 +1360,111 @@ export default function CreateListingPage() {
                         </div>
                       </AlertDescription>
                     </Alert>
+                  </CardContent>
+                </Card>
+
+                {/* Document Upload Section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Documents
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <FormLabel className="mb-2 block">APV Document (Required)</FormLabel>
+                      <FormDescription className="mb-4 text-xs">
+                        Upload the official APV (Aviz de Punere in Valoare) document for this auction
+                      </FormDescription>
+                      {!documents.some(d => d.isApvDocument) ? (
+                        draftAuctionId ? (
+                          <DocumentUploader
+                            auctionId={draftAuctionId}
+                            onUploadComplete={async (doc) => {
+                              // Mark as APV document
+                              const apvDoc = { ...doc, isApvDocument: true };
+                              setDocuments(prev => [...prev, apvDoc]);
+                              setApvDocumentId(doc.id);
+                            }}
+                            maxFiles={1}
+                            accept=".pdf"
+                            allowedTypes={["application/pdf"]}
+                            disabled={!userData}
+                          />
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={async () => {
+                              await createDraftAuction();
+                            }}
+                          >
+                            Click to Enable Document Upload
+                          </Button>
+                        )
+                      ) : (
+                        <div className="space-y-2">
+                          {documents.filter(d => d.isApvDocument).map(doc => (
+                            <DocumentCard
+                              key={doc.id}
+                              document={doc}
+                              showDelete
+                              onDelete={async () => {
+                                await deleteDocument(doc.storagePath);
+                                setDocuments(prev => prev.filter(d => d.id !== doc.id));
+                                setApvDocumentId(undefined);
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <FormLabel className="mb-2 block">Additional Documents (Optional)</FormLabel>
+                      <FormDescription className="mb-4 text-xs">
+                        Upload photos, maps, or additional documentation (PDF, JPG, PNG)
+                      </FormDescription>
+                      {draftAuctionId ? (
+                        <DocumentUploader
+                          auctionId={draftAuctionId}
+                          onUploadComplete={async (doc) => {
+                            setDocuments(prev => [...prev, doc]);
+                          }}
+                          maxFiles={10}
+                          disabled={!userData}
+                        />
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          onClick={async () => {
+                            await createDraftAuction();
+                          }}
+                        >
+                          Click to Enable Document Upload
+                        </Button>
+                      )}
+                      {documents.filter(d => !d.isApvDocument).length > 0 && (
+                        <div className="space-y-2 mt-4">
+                          {documents.filter(d => !d.isApvDocument).map(doc => (
+                            <DocumentCard
+                              key={doc.id}
+                              document={doc}
+                              showDelete
+                              compact
+                              onDelete={async () => {
+                                await deleteDocument(doc.storagePath);
+                                setDocuments(prev => prev.filter(d => d.id !== doc.id));
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
 

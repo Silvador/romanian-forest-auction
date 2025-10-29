@@ -85,6 +85,17 @@ export interface SpeciesBreakdown {
   volumeM3?: number; // Volume in cubic meters for this species
 }
 
+export interface DocumentMetadata {
+  id: string;
+  fileName: string;
+  storagePath: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedAt: number;
+  isApvDocument: boolean;
+  thumbnailUrl?: string; // For image previews
+}
+
 export interface Auction {
   id: string;
   ownerId: string;
@@ -108,6 +119,8 @@ export interface Auction {
   status: typeof auctionStatus[number];
   imageUrls: string[];
   documentUrls: string[];
+  documents: DocumentMetadata[]; // NEW - embedded document metadata
+  apvDocumentId?: string; // NEW - reference to primary APV document
   startTime: number;
   endTime: number;
   originalEndTime: number; // Track original end time before soft-close extensions

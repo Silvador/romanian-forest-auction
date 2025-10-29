@@ -68,7 +68,136 @@ if (!admin.apps.length) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  
+
+  // Create draft auction (to get ID for file uploads)
+  app.post("/api/auctions/draft", async (req, res) => {
+    console.log("[DRAFT ROUTE] Hit! Method:", req.method, "Path:", req.path, "Headers:", req.headers.authorization ? "Has auth" : "No auth");
+    try {
+      if (!db) {
+        console.log("[DRAFT ROUTE] No DB configured");
+        return res.status(503).json({
+          error: "Server-side Firebase not configured. Please use client SDK to create auctions directly."
+        });
+      }
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      console.log("[DRAFT ROUTE] Token:", token ? "Present" : "Missing");
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      // Get user data
+      const userDoc = await db.collection("users").doc(userId).get();
+      if (!userDoc.exists) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userData = userDoc.data();
+      if (userData?.role !== "forest_owner") {
+        return res.status(403).json({ error: "Only forest owners can create auctions" });
+      }
+
+      // Create minimal draft auction
+      const draftData = {
+        ownerId: userId,
+        ownerName: userData.displayName,
+        status: "draft" as const,
+        documents: [],
+        imageUrls: [],
+        documentUrls: [],
+        createdAt: Date.now(),
+        title: "",
+        description: "",
+        bidCount: 0,
+      };
+
+      const auctionRef = await db.collection("auctions").add(draftData);
+
+      res.status(201).json({
+        id: auctionRef.id,
+        ...draftData
+      });
+    } catch (error: any) {
+      console.error("Error creating draft auction:", error);
+      res.status(400).json({ error: error.message || "Failed to create draft auction" });
+    }
+  });
+
+  // Update auction (used to finalize draft with full data)
+  app.put("/api/auctions/:id", async (req, res) => {
+    try {
+      if (!db) {
+        return res.status(503).json({
+          error: "Server-side Firebase not configured. Please use client SDK."
+        });
+      }
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const auctionId = req.params.id;
+      const auctionDoc = await db.collection("auctions").doc(auctionId).get();
+
+      if (!auctionDoc.exists) {
+        return res.status(404).json({ error: "Auction not found" });
+      }
+
+      const existingAuction = auctionDoc.data();
+      if (existingAuction?.ownerId !== userId) {
+        return res.status(403).json({ error: "Not authorized to update this auction" });
+      }
+
+      // Validate and update with full data
+      const validatedData = insertAuctionSchema.parse(req.body);
+
+      // Determine dominant species
+      const dominantSpecies = validatedData.dominantSpecies ||
+        validatedData.speciesBreakdown.reduce((max, current) =>
+          current.percentage > max.percentage ? current : max
+        ).species;
+
+      // Calculate projected total value
+      const projectedTotalValue = validatedData.startingPricePerM3 * validatedData.volumeM3;
+
+      // Update auction with full data
+      const updatedData = {
+        ...validatedData,
+        ownerId: userId,
+        ownerName: existingAuction.ownerName,
+        dominantSpecies,
+        currentPricePerM3: validatedData.startingPricePerM3,
+        secondHighestPricePerM3: validatedData.startingPricePerM3,
+        projectedTotalValue,
+        originalEndTime: validatedData.endTime,
+        activityWindowCutoff: validatedData.endTime - (15 * 60 * 1000),
+        softCloseActive: false,
+        status: req.body.status || "upcoming",
+        bidCount: 0,
+        createdAt: existingAuction.createdAt,
+        documents: req.body.documents || [],
+        apvDocumentId: req.body.apvDocumentId,
+      };
+
+      await db.collection("auctions").doc(auctionId).update(updatedData);
+
+      res.status(200).json({
+        id: auctionId,
+        ...updatedData
+      });
+    } catch (error: any) {
+      console.error("Error updating auction:", error);
+      res.status(400).json({ error: error.message || "Failed to update auction" });
+    }
+  });
+
   // Create auction
   app.post("/api/auctions", async (req, res) => {
     try {
@@ -124,6 +253,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: req.body.status || "upcoming",
         bidCount: 0,
         createdAt: Date.now(),
+        documents: req.body.documents || [],
+        apvDocumentId: req.body.apvDocumentId,
       };
 
       const auctionRef = await db.collection("auctions").add(auctionData);

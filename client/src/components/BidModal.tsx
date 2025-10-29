@@ -20,9 +20,11 @@ interface BidModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPlaceBid: (amountPerM3: number, maxProxyPerM3: number) => Promise<void>;
+  initialBidPerM3?: number;
+  initialMaxProxyPerM3?: number;
 }
 
-export function BidModal({ auction, open, onOpenChange, onPlaceBid }: BidModalProps) {
+export function BidModal({ auction, open, onOpenChange, onPlaceBid, initialBidPerM3, initialMaxProxyPerM3 }: BidModalProps) {
   const [bidAmountPerM3, setBidAmountPerM3] = useState("");
   const [maxProxyPerM3, setMaxProxyPerM3] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,7 +53,7 @@ export function BidModal({ auction, open, onOpenChange, onPlaceBid }: BidModalPr
     const updateTimer = () => {
       const now = Date.now();
       const remaining = auction.endTime - now;
-      
+
       if (remaining <= 0) {
         setTimeRemaining("Auction ended");
         setIsEndingSoon(false);
@@ -80,6 +82,21 @@ export function BidModal({ auction, open, onOpenChange, onPlaceBid }: BidModalPr
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
   }, [auction.endTime]);
+
+  // Prefill form with initial values when modal opens
+  useEffect(() => {
+    if (open && initialBidPerM3 !== undefined) {
+      setBidAmountPerM3(String(initialBidPerM3));
+    }
+    if (open && initialMaxProxyPerM3 !== undefined) {
+      setMaxProxyPerM3(String(initialMaxProxyPerM3));
+    }
+    // Clear form when modal closes
+    if (!open) {
+      setBidAmountPerM3("");
+      setMaxProxyPerM3("");
+    }
+  }, [open, initialBidPerM3, initialMaxProxyPerM3]);
 
   const quickBidIncrements = getQuickBidIncrements(dominantSpecies);
 
