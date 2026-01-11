@@ -6,6 +6,8 @@
 
 import admin from "firebase-admin";
 import { Auction, Notification } from "@shared/schema";
+import { emailService } from "./emailService";
+import { getIO } from "../websocket";
 
 export interface AuctionTransitionResult {
   auctionId: string;
@@ -92,6 +94,21 @@ export class AuctionLifecycleManager {
       newStatus = "ended";
       shouldSettleWinner = true;
       console.log(`[LIFECYCLE] Auction ${id} should transition: active → ended (will settle winner)`);
+
+      // Emit WebSocket event for auction ending
+      try {
+        const io = getIO();
+        io.to(`auction:${id}`).emit('auction:ended', {
+          auctionId: parseInt(id),
+          winnerId: auction.currentBidderId ? parseInt(auction.currentBidderId) : null,
+          winnerAnonymousId: auction.currentBidderAnonymousId || null,
+          finalPrice: auction.currentPricePerM3 || 0,
+          totalValue: auction.projectedTotalValue || 0,
+        });
+        console.log(`[WebSocket] Emitted auction:ended for auction ${id}`);
+      } catch (wsError) {
+        console.error(`[WebSocket] Failed to emit auction:ended:`, wsError);
+      }
     } else if (status === "ended" && auction.currentBidderId) {
       // If auction has ended and has a winner, mark as sold
       newStatus = "sold";
@@ -205,6 +222,26 @@ export class AuctionLifecycleManager {
       });
       console.log(`[LIFECYCLE] Sent winner notification to ${auction.currentBidderId}`);
 
+      // Send winner email notification
+      try {
+        const winnerDoc = await this.db.collection("users").doc(auction.currentBidderId).get();
+        if (winnerDoc.exists) {
+          const winner = winnerDoc.data();
+          if (winner?.email && winner?.displayName) {
+            await emailService.sendWonAuctionEmail(
+              winner.email,
+              winner.displayName,
+              auction.title,
+              finalTotalPrice,
+              auction.id
+            );
+          }
+        }
+      } catch (emailError) {
+        console.error('[EMAIL] Failed to send won auction email:', emailError);
+        // Don't fail the lifecycle if email fails
+      }
+
       // Notify owner
       await this.createNotification({
         userId: auction.ownerId,
@@ -260,11 +297,28 @@ export class AuctionLifecycleManager {
   }
 
   /**
-   * Create a notification in Firestore
+   * Create a notification in Firestore and emit WebSocket event
    */
   private async createNotification(notification: Omit<Notification, "id">): Promise<void> {
     try {
-      await this.db.collection("notifications").add(notification);
+      const docRef = await this.db.collection("notifications").add(notification);
+
+      // Emit WebSocket event for real-time notification
+      try {
+        const io = getIO();
+        io.to(`user:${notification.userId}`).emit('notification:new', {
+          id: parseInt(docRef.id) || 0,
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          timestamp: notification.timestamp,
+          auctionId: notification.auctionId ? parseInt(notification.auctionId as string) : undefined,
+          isRead: notification.read,
+        });
+        console.log(`[WebSocket] Emitted notification:new to user ${notification.userId}`);
+      } catch (wsError) {
+        console.error("[WebSocket] Failed to emit notification:new:", wsError);
+      }
     } catch (error) {
       console.error("[LIFECYCLE] Failed to create notification:", error);
       throw error;

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Auction } from "@shared/schema";
 import { StatCard } from "./StatCard";
@@ -10,6 +11,8 @@ import { formatPricePerM3, formatVolume, formatPrice } from "@/utils/formatters"
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { useDashboardUpdates, useWebSocket } from "@/hooks/useWebSocket";
+import { queryClient } from "@/lib/queryClient";
 
 interface PerformanceStats {
   totalAuctions: number;
@@ -22,15 +25,36 @@ interface PerformanceStats {
 }
 
 export function ForestOwnerDashboard() {
+  const { connected } = useWebSocket();
+  const { onDashboardUpdate } = useDashboardUpdates();
+
   const { data: myAuctions, isLoading: auctionsLoading } = useQuery<Auction[]>({
     queryKey: ["/api/auctions/my-listings"],
-    refetchInterval: 30000, // Poll every 30 seconds for real-time updates
+    // Removed refetchInterval - using WebSocket for real-time updates
+    refetchInterval: connected ? false : 30000,
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery<PerformanceStats>({
     queryKey: ["/api/auctions/performance-stats"],
-    refetchInterval: 30000, // Poll every 30 seconds for real-time updates
+    // Removed refetchInterval - using WebSocket for real-time updates
+    refetchInterval: connected ? false : 30000,
   });
+
+  // ===== WEBSOCKET REAL-TIME DASHBOARD UPDATES =====
+  useEffect(() => {
+    const cleanup = onDashboardUpdate((data) => {
+      console.log('[WebSocket] Forest owner dashboard update:', data);
+
+      // Refetch relevant queries based on update type
+      if (data.type === 'my-listings') {
+        queryClient.invalidateQueries({ queryKey: ["/api/auctions/my-listings"] });
+      } else if (data.type === 'performance-stats') {
+        queryClient.invalidateQueries({ queryKey: ["/api/auctions/performance-stats"] });
+      }
+    });
+
+    return cleanup;
+  }, [onDashboardUpdate]);
 
   const activeAuctions = myAuctions?.filter(a => a.status === "active") || [];
   const upcomingAuctions = myAuctions?.filter(a => a.status === "upcoming") || [];

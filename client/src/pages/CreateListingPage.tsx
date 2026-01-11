@@ -19,15 +19,53 @@ import { DocumentUploader } from "@/components/documents/DocumentUploader";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import { deleteDocument } from "@/lib/storage";
 
+// Helper function to normalize species breakdown percentages to sum to 100%
+function normalizeSpeciesBreakdown(breakdown: SpeciesBreakdown[]): SpeciesBreakdown[] {
+  if (breakdown.length === 0) return breakdown;
+
+  const total = breakdown.reduce((sum, item) => sum + item.percentage, 0);
+
+  // If total is 0, distribute equally
+  if (total === 0) {
+    const equalPercentage = Math.round((100 / breakdown.length) * 100) / 100;
+    return breakdown.map(item => ({
+      ...item,
+      percentage: equalPercentage
+    }));
+  }
+
+  // If total is not 100, normalize proportionally
+  if (Math.abs(total - 100) > 0.01) {
+    const factor = 100 / total;
+    const normalized = breakdown.map((item) => ({
+      ...item,
+      // Round each percentage to 2 decimal places
+      percentage: Math.round(item.percentage * factor * 100) / 100
+    }));
+
+    // Ensure exact 100% by adjusting the last item for any rounding errors
+    const normalizedTotal = normalized.reduce((sum, item) => sum + item.percentage, 0);
+    if (Math.abs(normalizedTotal - 100) > 0.01) {
+      const adjustment = Math.round((100 - normalizedTotal) * 100) / 100;
+      normalized[normalized.length - 1].percentage = Math.round((normalized[normalized.length - 1].percentage + adjustment) * 100) / 100;
+    }
+
+    return normalized;
+  }
+
+  // Round existing percentages to 2 decimal places
+  return breakdown.map(item => ({
+    ...item,
+    percentage: Math.round(item.percentage * 100) / 100
+  }));
+}
+
 export default function CreateListingPage() {
   const { userData, loading } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDraft, setIsDraft] = useState(false);
-  const [speciesBreakdown, setSpeciesBreakdown] = useState<SpeciesBreakdown[]>([
-    { species: "Stejar", percentage: 0 }
-  ]);
   const [isOcrProcessing, setIsOcrProcessing] = useState(false);
   const [ocrResult, setOcrResult] = useState<ApvExtractionResult | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -45,6 +83,7 @@ export default function CreateListingPage() {
 
   const form = useForm<InsertAuction>({
     resolver: zodResolver(insertAuctionSchema),
+    mode: "onChange",
     defaultValues: {
       title: "",
       description: "",
@@ -52,11 +91,13 @@ export default function CreateListingPage() {
       location: "",
       volumeM3: undefined,
       startingPricePerM3: undefined,
-      speciesBreakdown: [],
+      speciesBreakdown: [{ species: "Stejar", percentage: 0 }],
       startTime: Date.now() + 60000, // Start in 1 minute
       endTime: Date.now() + 60000 + (7 * 24 * 3600000), // + 7 days
     },
   });
+
+  // Don't watch here - we'll use the field value directly in FormField render
 
   // Update times when timer controls change
   const updateAuctionTimes = () => {
@@ -87,26 +128,28 @@ export default function CreateListingPage() {
   }, []);
 
   const addSpecies = () => {
-    const updated: SpeciesBreakdown[] = [...speciesBreakdown, { species: "Stejar" as const, percentage: 0 }];
-    setSpeciesBreakdown(updated);
-    form.setValue("speciesBreakdown", updated);
+    const current = form.getValues("speciesBreakdown") || [];
+    const updated: SpeciesBreakdown[] = [...current, { species: "Stejar" as const, percentage: 0 }];
+    form.setValue("speciesBreakdown", updated, { shouldValidate: false });
   };
 
   const removeSpecies = (index: number) => {
-    const updated = speciesBreakdown.filter((_, i) => i !== index);
-    setSpeciesBreakdown(updated);
-    form.setValue("speciesBreakdown", updated);
+    const current = form.getValues("speciesBreakdown") || [];
+    const updated = current.filter((_, i) => i !== index);
+    form.setValue("speciesBreakdown", updated, { shouldValidate: false });
   };
 
   const updateSpecies = (index: number, field: "species" | "percentage", value: string | number) => {
-    const updated = [...speciesBreakdown];
+    const current = form.getValues("speciesBreakdown") || [];
+    const updated = [...current];
     if (field === "percentage") {
-      updated[index].percentage = typeof value === "string" ? parseFloat(value) || 0 : value;
+      const numValue = typeof value === "string" ? parseFloat(value) || 0 : value;
+      // Round to 2 decimal places
+      updated[index].percentage = Math.round(numValue * 100) / 100;
     } else {
       updated[index].species = value as typeof speciesTypes[number];
     }
-    setSpeciesBreakdown(updated);
-    form.setValue("speciesBreakdown", updated);
+    form.setValue("speciesBreakdown", updated, { shouldValidate: false });
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,9 +243,23 @@ export default function CreateListingPage() {
         form.setValue("apvSlopePercent", result.slopePercent);
       }
       
+      console.log('[CLIENT OCR] Full OCR result:', result);
+      console.log('[CLIENT OCR] speciesBreakdown from server:', result.speciesBreakdown);
+
       if (result.speciesBreakdown && result.speciesBreakdown.length > 0) {
-        setSpeciesBreakdown(result.speciesBreakdown);
-        form.setValue("speciesBreakdown", result.speciesBreakdown);
+        // Normalize the species breakdown to ensure percentages sum to 100%
+        const normalized = normalizeSpeciesBreakdown(result.speciesBreakdown);
+        console.log('[CLIENT OCR] Normalized breakdown:', normalized);
+        console.log('[CLIENT OCR] BEFORE setValue - current form state:', form.getValues("speciesBreakdown"));
+
+        // Update form state - this will automatically update the component via form.watch()
+        form.setValue("speciesBreakdown", normalized, { shouldValidate: false, shouldDirty: true });
+
+        console.log('[CLIENT OCR] AFTER setValue - form state:', form.getValues("speciesBreakdown"));
+        console.log('[CLIENT OCR] AFTER setValue - watched state:', form.watch("speciesBreakdown"));
+        console.log('[CLIENT OCR] Set form value completed');
+      } else {
+        console.log('[CLIENT OCR] NO species breakdown in OCR response!');
       }
 
       toast({
@@ -262,8 +319,14 @@ export default function CreateListingPage() {
       s => s.species && s.percentage > 0
     ) || [];
 
-    // Update form with filtered species
-    form.setValue('speciesBreakdown', filteredSpecies);
+    // Normalize the species breakdown to ensure percentages sum to 100%
+    const normalizedSpecies = normalizeSpeciesBreakdown(filteredSpecies);
+
+    // Update form with normalized species
+    form.setValue('speciesBreakdown', normalizedSpecies);
+
+    console.log("Normalized species breakdown:", normalizedSpecies);
+    console.log("Total percentage:", normalizedSpecies.reduce((sum, s) => sum + s.percentage, 0));
 
     // Trigger form submission
     await form.handleSubmit(onSubmit)();
@@ -274,7 +337,7 @@ export default function CreateListingPage() {
     try {
       const auctionData = {
         ...data,
-        speciesBreakdown: speciesBreakdown.filter(s => s.percentage > 0),
+        speciesBreakdown: data.speciesBreakdown.filter(s => s.percentage > 0),
         imageUrls: data.imageUrls || [],
         documentUrls: data.documentUrls || [],
         documents, // Add uploaded documents
@@ -597,7 +660,7 @@ export default function CreateListingPage() {
                         <input
                           id="apv-upload"
                           type="file"
-                          accept="image/*,.pdf"
+                          accept="image/*"
                           className="hidden"
                           onChange={handleFileUpload}
                           data-testid="input-apv-file"
@@ -922,9 +985,9 @@ export default function CreateListingPage() {
                               <FormItem>
                                 <FormLabel>Avg. Diameter (cm)</FormLabel>
                                 <FormControl>
-                                  <Input 
-                                    type="number" 
-                                    step="0.1" 
+                                  <Input
+                                    type="number"
+                                    step="0.01"
                                     min="0"
                                     placeholder="50.5" 
                                     value={field.value ?? ''} 
@@ -946,9 +1009,9 @@ export default function CreateListingPage() {
                               <FormItem>
                                 <FormLabel>Avg. Height (m)</FormLabel>
                                 <FormControl>
-                                  <Input 
-                                    type="number" 
-                                    step="0.1" 
+                                  <Input
+                                    type="number"
+                                    step="0.01"
                                     min="0"
                                     placeholder="25.5" 
                                     value={field.value ?? ''} 
@@ -1170,7 +1233,10 @@ export default function CreateListingPage() {
                 <FormField
                   control={form.control}
                   name="speciesBreakdown"
-                  render={() => (
+                  render={({ field }) => {
+                    const speciesBreakdown = field.value || [{ species: "Stejar" as const, percentage: 0 }];
+                    console.log('[RENDER] field.value:', field.value, 'length:', speciesBreakdown.length);
+                    return (
                     <FormItem>
                       <FormLabel>Species Breakdown</FormLabel>
                       <FormDescription>Total must equal 100%</FormDescription>
@@ -1236,7 +1302,8 @@ export default function CreateListingPage() {
                       </div>
                       <FormMessage />
                     </FormItem>
-                  )}
+                    );
+                  }}
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

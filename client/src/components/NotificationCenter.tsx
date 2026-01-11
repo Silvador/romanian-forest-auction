@@ -17,12 +17,16 @@ import { queryClient } from "@/lib/queryClient";
 import { Notification } from "@shared/schema";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useNotificationUpdates, useWebSocket } from "@/hooks/useWebSocket";
 
 export function NotificationCenter() {
   const { currentUser } = useAuth();
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const previousNotificationIds = useRef<Set<string>>(new Set());
+
+  const { connected } = useWebSocket();
+  const { onNotificationNew } = useNotificationUpdates();
 
   const { data: notifications = [], isLoading } = useQuery<Notification[]>({
     queryKey: ["/api/notifications"],
@@ -38,8 +42,41 @@ export function NotificationCenter() {
       return response.json();
     },
     enabled: !!currentUser,
-    refetchInterval: 30000, // Poll every 30 seconds
+    // Removed refetchInterval - using WebSocket for real-time updates
+    refetchInterval: connected ? false : 30000,
   });
+
+  // ===== WEBSOCKET REAL-TIME NOTIFICATION UPDATES =====
+  useEffect(() => {
+    const cleanup = onNotificationNew((notification) => {
+      console.log('[WebSocket] New notification:', notification);
+
+      // Add new notification to cache
+      queryClient.setQueryData(['/api/notifications'], (old: Notification[] | undefined) => {
+        const newNotification: Notification = {
+          id: String(notification.id),
+          userId: '', // Will be filled by backend
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          auctionId: notification.auctionId ? String(notification.auctionId) : undefined,
+          read: notification.isRead,
+          timestamp: notification.timestamp,
+        };
+
+        return [newNotification, ...(old || [])];
+      });
+
+      // Show toast notification
+      toast({
+        title: notification.title,
+        description: notification.message,
+        variant: notification.type === "won" ? "default" : notification.type === "outbid" ? "destructive" : "default",
+      });
+    });
+
+    return cleanup;
+  }, [onNotificationNew, toast]);
 
   // Show toast for new notifications
   useEffect(() => {

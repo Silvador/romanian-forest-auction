@@ -327,6 +327,8 @@ Return ONLY valid JSON, no other text.`,
       volumePerSpecies
     );
 
+    console.log('[OCR] Final speciesBreakdown array:', JSON.stringify(speciesBreakdown, null, 2));
+
     return {
       permitNumber: extracted.permitNumber || "",
       permitCode: extracted.permitCode || undefined,
@@ -372,7 +374,15 @@ function calculateSpeciesBreakdown(
   totalVolume: number,
   volumePerSpecies?: Record<string, number>
 ): SpeciesBreakdown[] {
+  console.log('[OCR calculateSpeciesBreakdown] Input parameters:');
+  console.log('  species:', species);
+  console.log('  totalVolume:', totalVolume);
+  console.log('  volumePerSpecies:', JSON.stringify(volumePerSpecies, null, 2));
+  console.log('  volumePerSpecies keys:', volumePerSpecies ? Object.keys(volumePerSpecies) : 'undefined');
+  console.log('  volumePerSpecies length:', volumePerSpecies ? Object.keys(volumePerSpecies).length : 0);
+
   if (volumePerSpecies && Object.keys(volumePerSpecies).length > 0 && totalVolume > 0) {
+    console.log('[OCR calculateSpeciesBreakdown] Using volumePerSpecies - multiple species detected');
     // Calculate percentages with rounding and include volumes
     const breakdown = Object.entries(volumePerSpecies).map(([speciesName, volume]) => ({
       species: speciesName as any,
@@ -392,14 +402,18 @@ function calculateSpeciesBreakdown(
       breakdown[maxIndex].percentage = parseFloat((breakdown[maxIndex].percentage + difference).toFixed(2));
     }
 
+    console.log('[OCR calculateSpeciesBreakdown] Returning breakdown with', breakdown.length, 'species');
     return breakdown;
   }
 
-  return [
+  console.log('[OCR calculateSpeciesBreakdown] No volumePerSpecies data - returning single species fallback');
+  const fallback = [
     {
       species: species as any,
       percentage: 100,
       volumeM3: totalVolume,
     },
   ];
+  console.log('[OCR calculateSpeciesBreakdown] Fallback:', JSON.stringify(fallback, null, 2));
+  return fallback;
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Auction, AuctionFilters } from "@shared/schema";
 import { DualViewAuctionFeed } from "@/components/auction-feed";
@@ -9,16 +9,47 @@ import { Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NotificationCenter } from "@/components/NotificationCenter";
+import { useFeedUpdates, useWebSocket } from "@/hooks/useWebSocket";
+import { queryClient } from "@/lib/queryClient";
 
 export default function HomePage() {
   const { userData } = useAuth();
   const [filters, setFilters] = useState<AuctionFilters>({});
 
+  const { connected } = useWebSocket();
+  const { onBidNew } = useFeedUpdates();
+
   const { data: allAuctions, isLoading } = useQuery<Auction[]>({
     queryKey: ["/api/auctions/feed"],
     enabled: !!userData,
-    refetchInterval: 2000, // Auto-refresh every 2 seconds for real-time price updates
+    // Removed refetchInterval - using WebSocket for real-time updates
+    // Fallback to occasional polling if WebSocket disconnected
+    refetchInterval: connected ? false : 10000,
   });
+
+  // ===== WEBSOCKET REAL-TIME FEED UPDATES =====
+  useEffect(() => {
+    const cleanup = onBidNew((data) => {
+      console.log('[WebSocket] Feed bid update:', data);
+
+      // Update specific auction in feed cache
+      queryClient.setQueryData(['/api/auctions/feed'], (old: Auction[] | undefined) => {
+        if (!old) return old;
+
+        return old.map(auction =>
+          auction.id === String(data.auctionId)
+            ? {
+                ...auction,
+                currentPricePerM3: data.currentPricePerM3,
+                bidCount: data.bidCount,
+              }
+            : auction
+        );
+      });
+    });
+
+    return cleanup;
+  }, [onBidNew]);
 
   // Apply filters and sorting client-side
   const auctions = useMemo(() => {

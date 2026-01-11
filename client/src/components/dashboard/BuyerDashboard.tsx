@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Auction } from "@shared/schema";
 import { StatCard } from "./StatCard";
@@ -11,6 +12,9 @@ import { formatPricePerM3, formatVolume, formatPrice } from "@/utils/formatters"
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
+import { useDashboardUpdates, useOutbidNotifications, useWebSocket } from "@/hooks/useWebSocket";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface BidWithAuction {
   auction: Auction;
@@ -20,20 +24,63 @@ interface BidWithAuction {
 }
 
 export function BuyerDashboard() {
+  const { toast } = useToast();
+  const { connected } = useWebSocket();
+  const { onDashboardUpdate } = useDashboardUpdates();
+  const { onOutbid } = useOutbidNotifications();
+
   const { data: myBids, isLoading: bidsLoading } = useQuery<BidWithAuction[]>({
     queryKey: ["/api/bids/my-bids"],
-    refetchInterval: 30000, // Poll every 30 seconds for real-time updates
+    // Removed refetchInterval - using WebSocket for real-time updates
+    refetchInterval: connected ? false : 30000,
   });
 
   const { data: wonAuctions, isLoading: wonLoading } = useQuery<Auction[]>({
     queryKey: ["/api/auctions/won"],
-    refetchInterval: 30000, // Poll every 30 seconds for real-time updates
+    // Removed refetchInterval - using WebSocket for real-time updates
+    refetchInterval: connected ? false : 30000,
   });
 
   const { data: watchlistAuctions, isLoading: watchlistLoading } = useQuery<Auction[]>({
     queryKey: ["/api/watchlist"],
-    refetchInterval: 30000, // Poll every 30 seconds for real-time updates
+    // Removed refetchInterval - using WebSocket for real-time updates
+    refetchInterval: connected ? false : 30000,
   });
+
+  // ===== WEBSOCKET REAL-TIME DASHBOARD UPDATES =====
+  useEffect(() => {
+    const cleanupDashboard = onDashboardUpdate((data) => {
+      console.log('[WebSocket] Dashboard update:', data);
+
+      // Refetch relevant queries based on update type
+      if (data.type === 'my-bids') {
+        queryClient.invalidateQueries({ queryKey: ["/api/bids/my-bids"] });
+      } else if (data.type === 'won-auctions') {
+        queryClient.invalidateQueries({ queryKey: ["/api/auctions/won"] });
+      } else if (data.type === 'watchlist') {
+        queryClient.invalidateQueries({ queryKey: ["/api/watchlist"] });
+      }
+    });
+
+    // Listen for outbid events
+    const cleanupOutbid = onOutbid((data) => {
+      console.log('[WebSocket] Outbid notification:', data);
+
+      toast({
+        title: "You've been outbid!",
+        description: `${data.auctionTitle} - New bid: €${data.newPrice}/m³`,
+        variant: "destructive",
+      });
+
+      // Refetch my bids to show updated status
+      queryClient.invalidateQueries({ queryKey: ["/api/bids/my-bids"] });
+    });
+
+    return () => {
+      cleanupDashboard();
+      cleanupOutbid();
+    };
+  }, [onDashboardUpdate, onOutbid, toast]);
 
   // Calculate buyer stats
   const totalBids = myBids?.reduce((sum, b) => sum + b.bidCount, 0) || 0;

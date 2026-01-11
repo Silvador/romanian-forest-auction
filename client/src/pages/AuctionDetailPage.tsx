@@ -16,6 +16,7 @@ import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAuctionUpdates, useWebSocket } from "@/hooks/useWebSocket";
 
 export default function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -26,17 +27,24 @@ export default function AuctionDetailPage() {
   const [initialMaxProxyPerM3, setInitialMaxProxyPerM3] = useState<number | undefined>(undefined);
   const [timeRemaining, setTimeRemaining] = useState("");
   const [isEndingSoon, setIsEndingSoon] = useState(false);
+  const [showPriceFlash, setShowPriceFlash] = useState(false);
+
+  const { connected } = useWebSocket();
+  const { onAuctionUpdate, onAuctionEnded, onAuctionSoftClose } = useAuctionUpdates(id);
 
   const { data: auction, isLoading, dataUpdatedAt, isFetching } = useQuery<Auction>({
     queryKey: [`/api/auctions/${id}`],
     enabled: !!id && !!userData,
-    refetchInterval: 30000, // Auto-refresh every 30 seconds for live auctions
+    // Removed refetchInterval - using WebSocket for real-time updates
+    // Fallback to occasional polling if WebSocket disconnected
+    refetchInterval: connected ? false : 30000,
   });
 
   const { data: bids } = useQuery<Bid[]>({
     queryKey: [`/api/bids/${id}`],
     enabled: !!id && !!userData,
-    refetchInterval: 30000,
+    // Removed refetchInterval - using WebSocket for real-time updates
+    refetchInterval: connected ? false : 30000,
   });
 
   // Real-time countdown timer (updates every second)
@@ -72,6 +80,78 @@ export default function AuctionDetailPage() {
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
   }, [auction?.endTime]);
+
+  // ===== WEBSOCKET REAL-TIME UPDATES =====
+  useEffect(() => {
+    if (!id) return;
+
+    // Listen for auction updates (new bids, price changes)
+    const cleanupAuctionUpdate = onAuctionUpdate((data) => {
+      console.log('[WebSocket] Auction update received:', data);
+
+      // Update auction cache with new data
+      queryClient.setQueryData([`/api/auctions/${id}`], (old: Auction | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          currentPricePerM3: data.currentPricePerM3,
+          currentBidderAnonymousId: data.currentBidderAnonymousId,
+          bidCount: data.bidCount,
+          endTime: data.endTime,
+          projectedTotalValue: data.projectedTotalValue,
+          softCloseActive: data.softCloseActive,
+          secondHighestPricePerM3: data.secondHighestPricePerM3,
+        };
+      });
+
+      // Refetch bids to show new bid in history
+      queryClient.invalidateQueries({ queryKey: [`/api/bids/${id}`] });
+
+      // Trigger price flash animation
+      setShowPriceFlash(true);
+      setTimeout(() => setShowPriceFlash(false), 700);
+    });
+
+    // Listen for auction ending
+    const cleanupAuctionEnded = onAuctionEnded((data) => {
+      console.log('[WebSocket] Auction ended:', data);
+
+      toast({
+        title: "Auction Ended",
+        description: `This auction has ended. ${data.winnerId ? `Winner: ${data.winnerAnonymousId}` : 'No bids received'}`,
+      });
+
+      // Refetch auction data to update status
+      queryClient.invalidateQueries({ queryKey: [`/api/auctions/${id}`] });
+    });
+
+    // Listen for soft-close extensions
+    const cleanupSoftClose = onAuctionSoftClose((data) => {
+      console.log('[WebSocket] Soft-close extension:', data);
+
+      toast({
+        title: "Auction Extended",
+        description: data.message,
+        duration: 5000,
+      });
+
+      // Update end time in cache
+      queryClient.setQueryData([`/api/auctions/${id}`], (old: Auction | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          endTime: data.newEndTime,
+          softCloseActive: true,
+        };
+      });
+    });
+
+    return () => {
+      cleanupAuctionUpdate();
+      cleanupAuctionEnded();
+      cleanupSoftClose();
+    };
+  }, [id, onAuctionUpdate, onAuctionEnded, onAuctionSoftClose, toast]);
 
   // Analyze user's bid status and suggest actions
   const userBidAnalysis = useMemo(() => {

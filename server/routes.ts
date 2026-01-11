@@ -5,6 +5,7 @@ import { z } from "zod";
 import { insertAuctionSchema, insertBidSchema, Auction, Bid } from "@shared/schema";
 import { getDocument, setDocument } from "./services/firestoreRestClient";
 import { extractApvData } from "./services/ocrService";
+import { emailService } from "./services/emailService";
 import {
   validateBid,
   processProxyBid,
@@ -19,6 +20,7 @@ import {
   buildScatterData,
   getAuctionPrice,
 } from "./utils/analyticsHelpers";
+import { initializeWebSocket, setIO, getIO } from "./websocket";
 
 // Initialize Firebase Admin (optional for MVP - client SDK handles most operations)
 // Server-side Firebase Admin is not required for this MVP as all operations
@@ -68,6 +70,16 @@ if (!admin.apps.length) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
+  // Health check endpoint for monitoring
+  app.get("/health", (req, res) => {
+    res.json({
+      status: "ok",
+      timestamp: Date.now(),
+      environment: process.env.NODE_ENV || "development",
+      database: db ? "connected" : "not configured"
+    });
+  });
 
   // Create draft auction (to get ID for file uploads)
   app.post("/api/auctions/draft", async (req, res) => {
@@ -393,6 +405,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await db.collection("auctions").doc(auctionId).update(auctionUpdate);
 
+      // ===== REAL-TIME WEBSOCKET EVENTS =====
+      try {
+        const io = getIO();
+
+        // 1. Update all viewers watching this specific auction
+        io.to(`auction:${auctionId}`).emit('auction:update', {
+          auctionId: parseInt(auctionId),
+          currentPricePerM3: bidResult.currentPricePerM3,
+          currentBidderAnonymousId: bidResult.currentBidderAnonymousId,
+          bidCount: (auction.bidCount || 0) + 1,
+          endTime: shouldExtendAuction ? newEndTime : auction.endTime,
+          projectedTotalValue: bidResult.projectedTotalValue,
+          softCloseActive: softCloseCheck.inSoftCloseWindow,
+          secondHighestPricePerM3: bidResult.secondHighestPricePerM3,
+        });
+
+        // 2. Update feed watchers (homepage)
+        io.to('feed:global').emit('bid:new', {
+          auctionId: parseInt(auctionId),
+          currentPricePerM3: bidResult.currentPricePerM3,
+          bidCount: (auction.bidCount || 0) + 1,
+          timestamp: Date.now(),
+        });
+
+        // 3. Notify outbid user directly
+        if (previousBidderId && previousBidderId !== userId) {
+          io.to(`user:${previousBidderId}`).emit('bid:outbid', {
+            auctionId: parseInt(auctionId),
+            auctionTitle: auction.title,
+            newPrice: bidResult.currentPricePerM3,
+            yourLastBid: auction.currentPricePerM3 || 0,
+            outbidBy: bidResult.currentBidderAnonymousId,
+          });
+
+          // Update previous bidder's dashboard
+          io.to(`dashboard:${previousBidderId}`).emit('dashboard:update', {
+            type: 'my-bids',
+            timestamp: Date.now(),
+          });
+        }
+
+        // 4. Notify auction owner
+        io.to(`user:${auction.ownerId}`).emit('auction:new-bid', {
+          auctionId: parseInt(auctionId),
+          currentPrice: bidResult.currentPricePerM3,
+          bidderAnonymousId: bidResult.currentBidderAnonymousId,
+          timestamp: Date.now(),
+        });
+
+        // Update owner's dashboard
+        io.to(`dashboard:${auction.ownerId}`).emit('dashboard:update', {
+          type: 'my-listings',
+          timestamp: Date.now(),
+        });
+
+        // 5. Update current bidder's dashboard
+        io.to(`dashboard:${userId}`).emit('dashboard:update', {
+          type: 'my-bids',
+          timestamp: Date.now(),
+        });
+
+        // 6. If auction was extended due to soft-close, notify all watchers
+        if (shouldExtendAuction) {
+          io.to(`auction:${auctionId}`).emit('auction:soft-close', {
+            auctionId: parseInt(auctionId),
+            newEndTime: newEndTime,
+            extensionMinutes: 3,
+            message: 'Auction extended by 3 minutes due to late bidding activity',
+          });
+        }
+
+        console.log(`[WebSocket] Emitted real-time updates for auction ${auctionId}`);
+      } catch (wsError) {
+        console.error('[WebSocket] Failed to emit real-time updates:', wsError);
+        // Don't fail the bid if WebSocket fails - continue with normal flow
+      }
+
       // Create notification for previous bidder (if exists and different user)
       if (previousBidderId && previousBidderId !== userId) {
         console.log(`[NOTIFICATION] Creating outbid notification for ${previousBidderId}`);
@@ -406,6 +495,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: Date.now(),
         });
         console.log(`[NOTIFICATION] Outbid notification created successfully`);
+
+        // Send outbid email notification
+        try {
+          const previousBidderDoc = await db.collection("users").doc(previousBidderId).get();
+          if (previousBidderDoc.exists) {
+            const previousBidder = previousBidderDoc.data();
+            if (previousBidder?.email && previousBidder?.displayName) {
+              await emailService.sendOutbidEmail(
+                previousBidder.email,
+                previousBidder.displayName,
+                auction.title,
+                previousBidAmount || bidResult.currentPricePerM3,
+                bidResult.currentPricePerM3,
+                auctionId
+              );
+            }
+          }
+        } catch (emailError) {
+          console.error('[EMAIL] Failed to send outbid email:', emailError);
+          // Don't fail the bid if email fails
+        }
       } else {
         console.log(`[NOTIFICATION] Skipping outbid notification - previousBidderId: ${previousBidderId}, currentUser: ${userId}`);
       }
@@ -1523,5 +1633,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  // Initialize WebSocket server
+  const io = initializeWebSocket(httpServer);
+  setIO(io);
+  console.log("✅ WebSocket server initialized successfully");
+
   return httpServer;
 }
