@@ -10,6 +10,7 @@ class WebSocketManager {
   private maxReconnectAttempts = 5;
   private eventListeners = new Map<string, Set<Function>>();
   private connectionStatusListeners = new Set<Function>();
+  private pendingEmissions: Array<{ event: string; args: any[] }> = [];
 
   async connect() {
     if (this.socket?.connected) {
@@ -46,6 +47,15 @@ class WebSocketManager {
       console.log('✓ [WebSocket] Connected');
       this.reconnectAttempts = 0;
       this.notifyConnectionStatus(true);
+
+      // Flush any emissions that were queued while disconnected
+      if (this.pendingEmissions.length > 0) {
+        const pending = [...this.pendingEmissions];
+        this.pendingEmissions = [];
+        for (const { event, args } of pending) {
+          this.socket?.emit(event as any, ...args as any);
+        }
+      }
     });
 
     this.socket.on('disconnect', (reason) => {
@@ -67,6 +77,19 @@ class WebSocketManager {
         } catch (refreshError) {
           console.error('[WebSocket] Failed to refresh token:', refreshError);
         }
+      }
+
+      // "User not found" during signup — user doc is being created, retry shortly
+      if (error.message.includes('User not found') && this.reconnectAttempts <= 3) {
+        console.log('[WebSocket] User document not ready, retrying in 2s...');
+        setTimeout(async () => {
+          const token = await auth.currentUser?.getIdToken(true);
+          if (token && this.socket) {
+            this.socket.auth = { token };
+            this.socket.connect();
+          }
+        }, 2000);
+        return;
       }
 
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
@@ -140,7 +163,13 @@ class WebSocketManager {
     ...args: Parameters<ClientToServerEvents[E]>
   ): void {
     if (!this.socket?.connected) {
-      console.warn(`[WebSocket] Cannot emit ${event}: not connected`);
+      // Queue watch/unwatch emissions to flush when connected
+      const eventStr = event as string;
+      if (eventStr.startsWith('watch:') || eventStr.startsWith('unwatch:')) {
+        // Replace any existing pending emission for the same event
+        this.pendingEmissions = this.pendingEmissions.filter(p => p.event !== eventStr);
+        this.pendingEmissions.push({ event: eventStr, args: args as any[] });
+      }
       return;
     }
     this.socket.emit(event, ...args as any);
@@ -185,6 +214,7 @@ class WebSocketManager {
       this.socket.disconnect();
       this.socket = null;
     }
+    this.pendingEmissions = [];
     this.eventListeners.clear();
     this.connectionStatusListeners.clear();
   }

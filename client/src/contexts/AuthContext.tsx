@@ -21,34 +21,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       console.log("Auth state changed. User:", user ? user.uid : "null");
       setCurrentUser(user);
-      
+
       if (user) {
-        try {
-          console.log("Fetching user data from backend API for UID:", user.uid);
-          const token = await user.getIdToken();
-          const response = await fetch("/api/user/me", {
-            headers: {
-              "Authorization": `Bearer ${token}`
+        const token = await user.getIdToken();
+        let data: User | null = null;
+
+        // Retry up to 3 times with 1s delay to handle signup race condition:
+        // onAuthStateChanged fires before POST /api/users completes
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const response = await fetch("/api/user/me", {
+              headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+              data = await response.json() as User;
+              console.log("User data loaded from backend:", data.role, data.displayName);
+              break;
+            } else if (response.status === 404 && attempt < 2) {
+              console.log(`User document not ready yet, retrying in 1s (attempt ${attempt + 1}/3)`);
+              await new Promise(r => setTimeout(r, 1000));
+            } else {
+              console.warn("Failed to fetch user data:", response.status);
+              break;
             }
-          });
-          
-          if (response.ok) {
-            const data = await response.json() as User;
-            console.log("User data loaded from backend:", data.role, data.displayName);
-            setUserData(data);
-          } else {
-            console.warn("Failed to fetch user data:", response.status);
-            setUserData(null);
+          } catch (error) {
+            console.error("Error fetching user data from backend:", error);
+            break;
           }
-        } catch (error) {
-          console.error("Error fetching user data from backend:", error);
-          setUserData(null);
         }
+
+        setUserData(data);
       } else {
         setUserData(null);
       }
-      
-      console.log("Setting loading to false");
+
       setLoading(false);
     });
 

@@ -20,3 +20,4 @@ vite.config.ts.*
 attached_assets/*service-account*
 attached_assets/*credentials*
 attached_assets/*.txt
+.gstack/
