@@ -158,7 +158,7 @@ export function calculatePriceChange(
   const percentage = startingPrice > 0 ? (value / startingPrice) * 100 : 0;
 
   let direction: "up" | "down" | "flat" = "flat";
-  if (Math.abs(percentage) < 0.01) {
+  if (Math.abs(percentage) < 0.05) {
     direction = "flat";
   } else if (value > 0) {
     direction = "up";
