@@ -307,8 +307,8 @@ export default function AuctionDetailPage() {
           </div>
         )}
 
-        <div className="space-y-6">
-          <div>
+        <div>
+          <div className="mb-6">
             <h1 className="text-3xl font-bold tracking-tight mb-2" data-testid="text-title">{auction.title}</h1>
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-1.5">
@@ -322,8 +322,13 @@ export default function AuctionDetailPage() {
             </div>
           </div>
 
-          <Card className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Two-column layout on desktop: left=details, right=price+bids */}
+          <div className="lg:grid lg:grid-cols-[1fr,380px] lg:gap-8 space-y-6 lg:space-y-0">
+
+          {/* RIGHT COLUMN on desktop (price card + recent bids) — rendered first for mobile order */}
+          <div className="space-y-6 lg:order-2">
+          <Card className="p-6 lg:sticky lg:top-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="text-sm font-medium text-muted-foreground">Current Price</div>
@@ -365,7 +370,10 @@ export default function AuctionDetailPage() {
               </div>
             </div>
           </Card>
+          </div>{/* end right column */}
 
+          {/* LEFT COLUMN on desktop — lot details, description, bids */}
+          <div className="space-y-6 lg:order-1">
           <Card className="p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-primary" />
@@ -775,12 +783,14 @@ export default function AuctionDetailPage() {
               </div>
             </Card>
           )}
+          </div>{/* end left column */}
+          </div>{/* end two-column grid */}
         </div>
       </div>
 
       {canBid && !bidModalOpen && isAuctionLive && (
-        <div className="fixed bottom-16 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border p-4 z-10">
-          <div className="max-w-4xl mx-auto space-y-3">
+        <div className="fixed bottom-16 lg:bottom-0 left-0 right-0 lg:left-16 bg-card/95 backdrop-blur-sm border-t border-border p-4 z-10">
+          <div className="max-w-5xl mx-auto space-y-3">
             {/* Main price and bid button row */}
             <div className="flex items-center justify-between gap-4">
               <div>
