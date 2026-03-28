@@ -23,23 +23,8 @@ revealItems.forEach((item) => revealObserver.observe(item));
 if (window.matchMedia('(pointer: fine)').matches) {
   const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
-  // Triptych subtle scene rotation
-  const triptych = document.getElementById('hero-phones');
-  if (triptych) {
-    let tX = 0, tY = 0, cX = 0, cY = 0;
-    document.addEventListener('mousemove', (e) => {
-      const rect = triptych.getBoundingClientRect();
-      if (rect.bottom < 0 || rect.top > window.innerHeight) return;
-      tX = ((e.clientX / window.innerWidth) - 0.5) * 8;
-      tY = ((e.clientY / window.innerHeight) - 0.5) * -4;
-    });
-    (function animTriptych() {
-      cX += (tX - cX) * 0.04;
-      cY += (tY - cY) * 0.04;
-      triptych.style.transform = `rotateY(${cX}deg) rotateX(${cY}deg)`;
-      requestAnimationFrame(animTriptych);
-    })();
-  }
+  // Showcase sections — scroll-triggered animation
+  // (handled by IntersectionObserver below)
 
   // Showcase mockup tilt
   const showcase = document.getElementById('showcase-mockup');
@@ -71,7 +56,26 @@ window.addEventListener('scroll', () => {
     : 'linear-gradient(180deg, rgba(8, 8, 8, 0.72), rgba(8, 8, 8, 0.38))';
 });
 
+// Showcase scroll-triggered reveals
+const showcaseSections = document.querySelectorAll('.showcase');
+const showcaseObserver = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('is-visible');
+        showcaseObserver.unobserve(entry.target);
+      }
+    });
+  },
+  { threshold: 0.15, rootMargin: '0px 0px -5% 0px' }
+);
+showcaseSections.forEach((s) => showcaseObserver.observe(s));
+
 // Reduced motion
 if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  document.querySelectorAll('.floating-badge').forEach(b => b.style.animation = 'none');
+  document.querySelectorAll('.showcase-enter-left, .showcase-enter-right').forEach(el => {
+    el.style.opacity = '1';
+    el.style.transform = 'none';
+    el.style.transition = 'none';
+  });
 }
