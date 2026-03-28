@@ -444,7 +444,7 @@ export default function CreateListingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-20 lg:pb-0">
       <div className="max-w-3xl mx-auto px-4 py-6">
         <Link href="/">
           <Button variant="ghost" className="mb-4 gap-2" data-testid="button-back">

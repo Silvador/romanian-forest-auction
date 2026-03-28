@@ -240,8 +240,8 @@ export default function AuctionDetailPage() {
   const isDataFresh = dataAge < 60000; // Fresh if less than 1 minute old
 
   return (
-    <div className="min-h-screen bg-background pb-40">
-      <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="min-h-screen bg-background pb-40 lg:pb-8">
+      <div className="max-w-5xl mx-auto px-4 py-6">
         <Link href="/">
           <Button variant="ghost" className="mb-4 gap-2" data-testid="button-back">
             <ChevronLeft className="w-4 h-4" />

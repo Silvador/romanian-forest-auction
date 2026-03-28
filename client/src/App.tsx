@@ -37,8 +37,10 @@ function ProtectedRoute({ component: Component }: { component: () => JSX.Element
 
   return (
     <>
-      <Component />
       <BottomNav />
+      <div className="lg:ml-16">
+        <Component />
+      </div>
     </>
   );
 }

@@ -218,7 +218,7 @@ export default function MarketPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-4 pb-24">
+      <div className="min-h-screen bg-background p-4 pb-24 lg:pb-4">
         <div className="max-w-7xl mx-auto space-y-6">
           <Skeleton className="h-12 w-64" />
           <Skeleton className="h-10 w-full" />
@@ -236,7 +236,7 @@ export default function MarketPage() {
   // No data state
   if (!displayData || !chartData) {
     return (
-      <div className="min-h-screen bg-background p-4 pb-24">
+      <div className="min-h-screen bg-background p-4 pb-24 lg:pb-4">
         <div className="max-w-7xl mx-auto">
           <p className="text-muted-foreground">No market data available</p>
         </div>
@@ -245,7 +245,7 @@ export default function MarketPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 pb-24">
+    <div className="min-h-screen bg-background p-4 pb-24 lg:pb-4">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div>
