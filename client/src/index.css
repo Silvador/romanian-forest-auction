@@ -245,6 +245,11 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+
+  h1, h2, h3, h4 {
+    text-wrap: balance;
   }
 
   *:focus-visible {
