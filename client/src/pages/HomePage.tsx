@@ -4,8 +4,9 @@ import { Auction, AuctionFilters } from "@shared/schema";
 import { DualViewAuctionFeed } from "@/components/auction-feed";
 import { AuctionFilterPanel } from "@/components/AuctionFilterPanel";
 import { Button } from "@/components/ui/button";
-import { Plus, Filter } from "lucide-react";
+import { Plus, Filter, BarChart3, TrendingUp, TreeDeciduous, Clock } from "lucide-react";
 import { Link } from "wouter";
+import { Card } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NotificationCenter } from "@/components/NotificationCenter";
@@ -178,7 +179,62 @@ export default function HomePage() {
             </div>
           </div>
         ) : auctions && auctions.length > 0 ? (
-          <DualViewAuctionFeed auctions={auctions} />
+          <>
+            <DualViewAuctionFeed auctions={auctions} />
+            {auctions.length <= 3 && (
+              <div className="px-4 py-6 border-t border-border">
+                <h2 className="text-lg font-semibold mb-4 text-muted-foreground">Market Snapshot</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <BarChart3 className="w-4 h-4" />
+                      <span className="text-xs font-medium uppercase">Active</span>
+                    </div>
+                    <div className="text-2xl font-bold tabular-nums">{auctions.length}</div>
+                    <div className="text-xs text-muted-foreground">live auctions</div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <TrendingUp className="w-4 h-4" />
+                      <span className="text-xs font-medium uppercase">Avg Price</span>
+                    </div>
+                    <div className="text-2xl font-bold tabular-nums">
+                      {auctions.length > 0
+                        ? `€${Math.round(auctions.reduce((s, a) => s + (a.currentPricePerM3 || 0), 0) / auctions.length).toLocaleString('de-DE')}`
+                        : '—'}
+                    </div>
+                    <div className="text-xs text-muted-foreground">per m³</div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <TreeDeciduous className="w-4 h-4" />
+                      <span className="text-xs font-medium uppercase">Volume</span>
+                    </div>
+                    <div className="text-2xl font-bold tabular-nums">
+                      {auctions.reduce((s, a) => s + (a.volumeM3 || 0), 0).toLocaleString('de-DE')} m³
+                    </div>
+                    <div className="text-xs text-muted-foreground">total listed</div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <Clock className="w-4 h-4" />
+                      <span className="text-xs font-medium uppercase">Total Bids</span>
+                    </div>
+                    <div className="text-2xl font-bold tabular-nums">
+                      {auctions.reduce((s, a) => s + (a.bidCount || 0), 0)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">across all auctions</div>
+                  </Card>
+                </div>
+                <Link href="/market">
+                  <Button variant="ghost" size="sm" className="mt-4 text-muted-foreground">
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    View full market dashboard
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-16">
             <Filter className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
