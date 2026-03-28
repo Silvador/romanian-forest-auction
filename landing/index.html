@@ -33,11 +33,11 @@
         <a href="#benefits">Benefits</a>
       </nav>
 
-      <a class="rf-button rf-button-small" href="/login">
+      <a class="rf-button rf-button-small" href="#join-waitlist">
         <span class="rf-button__icon" aria-hidden="true">
           <span class="icon-grid"></span>
         </span>
-        <span class="rf-button__label">Open App</span>
+        <span class="rf-button__label">Join Waitlist</span>
       </a>
     </div>
   </header>
@@ -64,38 +64,29 @@
 
         <!-- Single CTA -->
         <div class="hero-actions reveal">
-          <a class="rf-button rf-button-large" href="/signup">
+          <a class="rf-button rf-button-large" href="#join-waitlist">
             <span class="rf-button__icon" aria-hidden="true"><span class="icon-grid"></span></span>
-            <span class="rf-button__label">Get Started Free</span>
+            <span class="rf-button__label">Join Waitlist</span>
           </a>
         </div>
 
-        <!-- App mockup with browser chrome + cursor tilt -->
-        <div class="hero-mockup-wrapper reveal">
-          <div class="hero-mockup" id="hero-mockup">
-            <div class="mockup-chrome">
-              <span class="chrome-dot" style="background:#ff5f57"></span>
-              <span class="chrome-dot" style="background:#febc2e"></span>
-              <span class="chrome-dot" style="background:#28c840"></span>
-            </div>
-            <img src="assets/app-feed.png" alt="Romanian Forest marketplace — auction feed with live listings and market data">
+        <!-- Three.js Phone Stage -->
+        <div class="phone-stage-wrapper reveal">
+          <canvas id="phone-stage"></canvas>
+          <div class="phone-stage-labels">
+            <span class="stage-label stage-label--left">Market Data</span>
+            <span class="stage-label stage-label--center">Live Auctions</span>
+            <span class="stage-label stage-label--right">Auction Detail</span>
           </div>
         </div>
 
-        <!-- Stats below mockup -->
-        <div class="hero-stats reveal">
-          <article class="stat-card glass-card">
-            <span class="stat-value">28%</span>
-            <span class="stat-label">of Romania is forested</span>
-          </article>
-          <article class="stat-card glass-card">
-            <span class="stat-value">0%</span>
-            <span class="stat-label">commission on every sale</span>
-          </article>
-          <article class="stat-card glass-card">
-            <span class="stat-value">24/7</span>
-            <span class="stat-label">live auctions and market data</span>
-          </article>
+        <!-- Stats ticker strip -->
+        <div class="hero-ticker reveal">
+          <div class="ticker-item"><span class="ticker-num">28%</span><span class="ticker-desc">of Romania is forested</span></div>
+          <div class="ticker-divider"></div>
+          <div class="ticker-item"><span class="ticker-num">0%</span><span class="ticker-desc">commission on every sale</span></div>
+          <div class="ticker-divider"></div>
+          <div class="ticker-item"><span class="ticker-num">24/7</span><span class="ticker-desc">live auctions and market data</span></div>
         </div>
       </div>
     </section>
@@ -139,7 +130,7 @@
             </div>
           </div>
 
-          <a class="rf-button rf-button-large feature-cta reveal" href="/signup">
+          <a class="rf-button rf-button-large feature-cta reveal" href="#join-waitlist">
             <span class="rf-button__icon" aria-hidden="true"><span class="icon-grid"></span></span>
             <span class="rf-button__label">Learn More</span>
           </a>
@@ -265,18 +256,21 @@
       </div>
     </section>
 
-    <section class="section cta-section" id="cta">
+    <section class="section cta-section" id="join-waitlist">
       <div class="container cta-shell glass-card reveal">
         <div>
-          <p class="eyebrow">Start Trading</p>
+          <p class="eyebrow">Be first in line</p>
           <h2>The Future of Romania's Forest Market — Open, Fair, Sustainable.</h2>
-          <p>Create your account and start listing or bidding today. Zero commission, always.</p>
+          <p>Join the waitlist to get early access when we launch. Zero commission, always.</p>
         </div>
 
-        <a class="rf-button rf-button-large" href="/signup">
-          <span class="rf-button__icon" aria-hidden="true"><span class="icon-grid"></span></span>
-          <span class="rf-button__label">Get Started Free</span>
-        </a>
+        <div class="waitlist-form">
+          <input type="email" placeholder="your@email.com" class="waitlist-input" id="waitlist-email">
+          <a class="rf-button rf-button-large" href="#" onclick="event.preventDefault(); document.getElementById('waitlist-email').value && alert('Thanks! We\'ll notify you at ' + document.getElementById('waitlist-email').value); return false;">
+            <span class="rf-button__icon" aria-hidden="true"><span class="icon-grid"></span></span>
+            <span class="rf-button__label">Join Waitlist</span>
+          </a>
+        </div>
       </div>
     </section>
   </main>
@@ -288,6 +282,8 @@
     </div>
   </footer>
 
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
   <script src="script.js"></script>
+  <script type="module" src="phone-stage.js"></script>
 </body>
 </html>

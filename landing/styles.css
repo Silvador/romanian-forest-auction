@@ -438,7 +438,111 @@ p {
   color: var(--muted-strong);
 }
 
-/* App mockup with browser chrome */
+/* Three.js Phone Stage */
+.phone-stage-wrapper {
+  width: 100%;
+  max-width: 1000px;
+  margin: 48px auto 0;
+  position: relative;
+}
+
+#phone-stage {
+  width: 100%;
+  height: 560px;
+  display: block;
+  border-radius: 20px;
+}
+
+.phone-stage-labels {
+  position: absolute;
+  bottom: 30px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 10%;
+  pointer-events: none;
+}
+
+.stage-label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--muted);
+  opacity: 0.7;
+  text-align: center;
+}
+
+/* Hero ticker strip (replaces stat cards) */
+.hero-ticker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-top: 36px;
+  padding: 20px 36px;
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(28,28,28,0.7), rgba(18,18,18,0.8));
+}
+
+.hero-ticker .ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 32px;
+}
+
+.hero-ticker .ticker-num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--accent);
+}
+
+.hero-ticker .ticker-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+  max-width: 14ch;
+}
+
+.hero-ticker .ticker-divider {
+  width: 1px;
+  height: 40px;
+  background: rgba(238, 255, 53, 0.15);
+}
+
+/* Waitlist form */
+.waitlist-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 320px;
+}
+
+.waitlist-input {
+  padding: 16px 20px;
+  border-radius: 14px;
+  border: 1px solid var(--panel-border);
+  background: rgba(14, 14, 14, 0.8);
+  color: var(--text);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.waitlist-input:focus {
+  border-color: var(--accent);
+}
+
+.waitlist-input::placeholder {
+  color: var(--muted);
+}
+
+/* App mockup with browser chrome (kept for showcase section) */
 .hero-mockup-wrapper {
   width: 100%;
   max-width: 960px;
@@ -890,6 +994,34 @@ p {
   .problem-metrics,
   .benefits-grid {
     grid-template-columns: 1fr;
+  }
+
+  #phone-stage {
+    height: 360px;
+  }
+
+  .phone-stage-labels {
+    display: none;
+  }
+
+  .hero-ticker {
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+  }
+
+  .hero-ticker .ticker-divider {
+    width: 100%;
+    height: 1px;
+  }
+
+  .hero-ticker .ticker-item {
+    padding: 0;
+  }
+
+  .waitlist-form {
+    min-width: auto;
+    width: 100%;
   }
 
   .section {
