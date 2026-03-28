@@ -123,7 +123,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               </h3>
               <div className="flex items-center gap-2 mt-1">
                 <StatusDot status={auctionStatus} size={8} />
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
+                <span className="text-xs font-bold text-positive uppercase tracking-wide">
                   {auctionStatus === "live" ? "LIVE" : auctionStatus === "upcoming" ? "UPCOMING" : "ENDED"}
                 </span>
               </div>

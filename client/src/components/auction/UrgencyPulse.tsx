@@ -29,8 +29,8 @@ export function UrgencyPulse({
 
   const urgencyStyles = {
     normal: "text-muted-foreground",
-    ending_soon: "text-amber-600 dark:text-amber-400 countdown-ring",
-    urgent: "text-red-600 dark:text-red-400 countdown-ring-fast",
+    ending_soon: "text-caution countdown-ring",
+    urgent: "text-negative countdown-ring-fast",
   };
 
   const glowStyles = {
@@ -48,8 +48,8 @@ export function UrgencyPulse({
         calculatedUrgency === "normal"
           ? "border-border/40 bg-muted/30"
           : calculatedUrgency === "ending_soon"
-          ? "border-amber-500/40 bg-amber-500/10"
-          : "border-red-500/40 bg-red-600/15"
+          ? "border-caution/40 bg-caution/10"
+          : "border-negative/40 bg-negative/15"
       )}
     >
       <Clock className="w-4 h-4 flex-shrink-0" />

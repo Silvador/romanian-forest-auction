@@ -13,8 +13,8 @@ export function StatusDot({
 }: StatusDotProps) {
   // Status color mapping (Bloomberg/TradingView style)
   const statusStyles = {
-    live: "bg-emerald-500 status-pulse", // Pulsing green for active
-    upcoming: "bg-amber-500 animate-pulse-soft", // Soft amber pulse for upcoming
+    live: "bg-positive status-pulse",
+    upcoming: "bg-caution animate-pulse-soft",
     ended: "bg-muted-foreground/40", // Muted gray for ended (no animation)
   };
 

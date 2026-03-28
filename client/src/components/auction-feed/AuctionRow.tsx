@@ -40,7 +40,7 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
       <div className="col-span-4 flex items-center gap-3 min-w-0">
         <div className="relative shrink-0">
           {isLive && (
-            <span className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-emerald-500 status-pulse" />
+            <span className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-positive status-pulse" />
           )}
           <Badge
             variant={isLive ? "default" : "secondary"}

@@ -329,8 +329,8 @@ export default function AuctionDetailPage() {
                   <div className="text-sm font-medium text-muted-foreground">Current Price</div>
                   {/* Data freshness indicator */}
                   <div className="flex items-center gap-1.5 text-xs">
-                    <RefreshCw className={`w-3 h-3 ${isFetching ? 'animate-spin text-amber-500' : 'text-primary'}`} />
-                    <span className={isFetching ? 'text-amber-500' : 'text-primary'}>
+                    <RefreshCw className={`w-3 h-3 ${isFetching ? 'animate-spin text-caution' : 'text-primary'}`} />
+                    <span className={isFetching ? 'text-caution' : 'text-primary'}>
                       {isFetching ? 'Updating...' : isDataFresh ? 'Live' : `${Math.floor(dataAge / 1000)}s ago`}
                     </span>
                   </div>
@@ -832,7 +832,7 @@ export default function AuctionDetailPage() {
                   <span className="text-muted-foreground">
                     Buffer: <span className={`font-semibold ${
                       userBidAnalysis.bufferStatus === 'danger' ? 'text-destructive' :
-                      userBidAnalysis.bufferStatus === 'warning' ? 'text-amber-500' :
+                      userBidAnalysis.bufferStatus === 'warning' ? 'text-caution' :
                       'text-primary'
                     }`}>{formatPricePerM3(userBidAnalysis.buffer)}</span>
                   </span>

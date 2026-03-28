@@ -16,9 +16,9 @@ export function MetricChip({
 }: MetricChipProps) {
   const toneStyles = {
     neutral: "bg-muted/40 text-muted-foreground border border-border/40",
-    positive: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
-    negative: "bg-red-500/10 text-red-400 border border-red-500/30",
-    urgent: "bg-red-600/20 text-red-300 border border-red-500/40 animate-pulse-soft",
+    positive: "bg-positive/10 text-positive border border-positive/30",
+    negative: "bg-negative/10 text-negative border border-negative/30",
+    urgent: "bg-negative/20 text-negative border border-negative/40 animate-pulse-soft",
   };
 
   return (

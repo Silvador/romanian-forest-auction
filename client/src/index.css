@@ -535,7 +535,7 @@
 
   /* Price trend pill styles */
   .trend-up {
-    @apply bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30;
+    @apply bg-positive/10 text-positive border border-positive/30;
   }
 
   .trend-down {
