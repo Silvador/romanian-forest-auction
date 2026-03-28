@@ -9,9 +9,10 @@ import { Auction } from "@shared/schema";
 interface AuctionRowProps {
   auction: Auction;
   onClick: () => void;
+  delay?: number;
 }
 
-export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function AuctionRow({ auction, onClick }, ref) {
+export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function AuctionRow({ auction, onClick, delay = 0 }, ref) {
   const timeRemaining = formatTimeRemaining(auction.endTime);
   const isEndingSoon = isAuctionEndingSoon(auction.endTime);
   const isLive = auction.status === "live";
@@ -26,7 +27,7 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
       ref={ref}
       layout
       initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+      animate={{ opacity: 1, y: 0, transition: { delay, duration: 0.3, ease: "easeOut" } }}
       whileHover={{ 
         backgroundColor: "hsl(var(--accent))",
         transition: { duration: 0.15 }

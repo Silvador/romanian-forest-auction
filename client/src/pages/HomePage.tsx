@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { Auction, AuctionFilters } from "@shared/schema";
 import { DualViewAuctionFeed } from "@/components/auction-feed";
@@ -182,49 +183,36 @@ export default function HomePage() {
           <>
             <DualViewAuctionFeed auctions={auctions} />
             {auctions.length <= 3 && (
-              <div className="px-4 py-6 border-t border-border">
+              <motion.div
+                className="px-4 py-6 border-t border-border"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2, duration: 0.4 }}
+              >
                 <h2 className="text-xl font-semibold mb-4 text-muted-foreground">Market Snapshot</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Card className="p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                      <BarChart3 className="w-4 h-4" />
-                      <span className="text-xs font-medium uppercase">Active</span>
-                    </div>
-                    <div className="text-2xl font-bold tabular-nums">{auctions.length}</div>
-                    <div className="text-xs text-muted-foreground">live auctions</div>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                      <TrendingUp className="w-4 h-4" />
-                      <span className="text-xs font-medium uppercase">Avg Price</span>
-                    </div>
-                    <div className="text-2xl font-bold tabular-nums">
-                      {auctions.length > 0
-                        ? `€${Math.round(auctions.reduce((s, a) => s + (a.currentPricePerM3 || 0), 0) / auctions.length).toLocaleString('de-DE')}`
-                        : '—'}
-                    </div>
-                    <div className="text-xs text-muted-foreground">per m³</div>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                      <TreeDeciduous className="w-4 h-4" />
-                      <span className="text-xs font-medium uppercase">Volume</span>
-                    </div>
-                    <div className="text-2xl font-bold tabular-nums">
-                      {auctions.reduce((s, a) => s + (a.volumeM3 || 0), 0).toLocaleString('de-DE')} m³
-                    </div>
-                    <div className="text-xs text-muted-foreground">total listed</div>
-                  </Card>
-                  <Card className="p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                      <Clock className="w-4 h-4" />
-                      <span className="text-xs font-medium uppercase">Total Bids</span>
-                    </div>
-                    <div className="text-2xl font-bold tabular-nums">
-                      {auctions.reduce((s, a) => s + (a.bidCount || 0), 0)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">across all auctions</div>
-                  </Card>
+                  {[
+                    { icon: <BarChart3 className="w-4 h-4" />, label: "Active", value: auctions.length, sub: "live auctions" },
+                    { icon: <TrendingUp className="w-4 h-4" />, label: "Avg Price", value: auctions.length > 0 ? `€${Math.round(auctions.reduce((s, a) => s + (a.currentPricePerM3 || 0), 0) / auctions.length).toLocaleString('de-DE')}` : '—', sub: "per m³" },
+                    { icon: <TreeDeciduous className="w-4 h-4" />, label: "Volume", value: `${auctions.reduce((s, a) => s + (a.volumeM3 || 0), 0).toLocaleString('de-DE')} m³`, sub: "total listed" },
+                    { icon: <Clock className="w-4 h-4" />, label: "Total Bids", value: auctions.reduce((s, a) => s + (a.bidCount || 0), 0), sub: "across all auctions" },
+                  ].map((stat, i) => (
+                    <motion.div
+                      key={stat.label}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.25 + i * 0.06, duration: 0.35, ease: "easeOut" }}
+                    >
+                      <Card className="p-4">
+                        <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                          {stat.icon}
+                          <span className="text-xs font-medium uppercase">{stat.label}</span>
+                        </div>
+                        <div className="text-2xl font-bold tabular-nums">{stat.value}</div>
+                        <div className="text-xs text-muted-foreground">{stat.sub}</div>
+                      </Card>
+                    </motion.div>
+                  ))}
                 </div>
                 <Link href="/market">
                   <Button variant="ghost" size="sm" className="mt-4 text-muted-foreground">
@@ -232,7 +220,7 @@ export default function HomePage() {
                     View full market dashboard
                   </Button>
                 </Link>
-              </div>
+              </motion.div>
             )}
           </>
         ) : (

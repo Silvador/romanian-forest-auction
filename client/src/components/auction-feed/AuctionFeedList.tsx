@@ -37,11 +37,12 @@ export function AuctionFeedList({ auctions }: AuctionFeedListProps) {
 
       {/* Auction Rows */}
       <AnimatePresence mode="popLayout">
-        {auctions.map((auction) => (
+        {auctions.map((auction, index) => (
           <AuctionRow
             key={auction.id}
             auction={auction}
             onClick={() => handleAuctionClick(auction.id)}
+            delay={index * 0.05}
           />
         ))}
       </AnimatePresence>
