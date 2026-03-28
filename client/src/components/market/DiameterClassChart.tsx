@@ -111,7 +111,7 @@ export function DiameterClassChart({ diameterClasses, hasActiveFilters }: Diamet
   }
 
   return (
-    <Card data-testid="card-diameter-class" className="transition-all duration-200 ease-out">
+    <Card data-testid="card-diameter-class" className="transition-colors duration-200 ease-out">
       <CardHeader>
         <CardTitle>Diameter Class Analysis</CardTitle>
         <p className="text-sm text-muted-foreground">

@@ -254,7 +254,7 @@ export default function MarketPage() {
         </div>
 
         {/* Sticky Filter Bar with smooth transitions */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border pb-4 transition-all duration-200 ease-out">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border pb-4 transition-colors duration-200 ease-out">
           <MarketFiltersPanel
             filters={filters}
             setFilters={setFilters}
@@ -264,7 +264,7 @@ export default function MarketPage() {
         </div>
 
         {/* Stats Cards with animation on filter change */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-200 ease-out">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-colors duration-200 ease-out">
           <Card data-testid="card-total-volume">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Volume Sold</CardTitle>
@@ -311,7 +311,7 @@ export default function MarketPage() {
         </div>
 
         {/* Price Trends Chart */}
-        <Card data-testid="card-price-trends" className="transition-all duration-200 ease-out">
+        <Card data-testid="card-price-trends" className="transition-colors duration-200 ease-out">
           <CardHeader>
             <CardTitle>Price Trends by Species</CardTitle>
             <p className="text-sm text-muted-foreground">
@@ -366,7 +366,7 @@ export default function MarketPage() {
 
         {/* Volume by Species Chart */}
         {chartData.volumeData.length > 0 && (
-          <Card data-testid="card-volume-species" className="transition-all duration-200 ease-out">
+          <Card data-testid="card-volume-species" className="transition-colors duration-200 ease-out">
             <CardHeader>
               <CardTitle>Volume Sold by Species</CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -403,7 +403,7 @@ export default function MarketPage() {
 
         {/* Regional Price Comparison */}
         {chartData.regionalData.length > 0 && (
-          <Card data-testid="card-regional-price" className="transition-all duration-200 ease-out">
+          <Card data-testid="card-regional-price" className="transition-colors duration-200 ease-out">
             <CardHeader>
               <CardTitle>Regional Price Comparison</CardTitle>
               <p className="text-sm text-muted-foreground">

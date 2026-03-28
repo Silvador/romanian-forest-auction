@@ -101,7 +101,7 @@ export function TreatmentTypeChart({ treatmentTypes, hasActiveFilters }: Treatme
   const avgPrice = chartData.reduce((sum, d) => sum + (d.avgPrice * d.volume), 0) / totalVolume;
 
   return (
-    <Card data-testid="card-treatment-type" className="transition-all duration-200 ease-out">
+    <Card data-testid="card-treatment-type" className="transition-colors duration-200 ease-out">
       <CardHeader>
         <CardTitle>Treatment Type Breakdown</CardTitle>
         <p className="text-sm text-muted-foreground">

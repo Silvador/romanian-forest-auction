@@ -169,7 +169,7 @@ export function VolumeVsPriceScatter({ scatterData, hasActiveFilters }: VolumeVs
   const speciesList = Object.keys(groupedData);
 
   return (
-    <Card data-testid="card-volume-price-scatter" className="transition-all duration-200 ease-out">
+    <Card data-testid="card-volume-price-scatter" className="transition-colors duration-200 ease-out">
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>

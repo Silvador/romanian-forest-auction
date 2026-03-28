@@ -158,7 +158,7 @@ export function DocumentUploader({
         onDragLeave={handleDragLeave}
         onClick={handleClick}
         className={cn(
-          "border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer",
+          "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
           isDragging && "border-primary bg-primary/5",
           !isDragging && "border-border hover:border-primary hover:bg-accent/50",
           disabled && "opacity-50 cursor-not-allowed"

@@ -209,7 +209,7 @@ export function MarketInsights({ analytics, hasActiveFilters }: MarketInsightsPr
   };
 
   return (
-    <Card data-testid="card-market-insights" className="transition-all duration-200 ease-out">
+    <Card data-testid="card-market-insights" className="transition-colors duration-200 ease-out">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Lightbulb className="h-5 w-5" />
@@ -225,7 +225,7 @@ export function MarketInsights({ analytics, hasActiveFilters }: MarketInsightsPr
           {insights.map((insight, index) => (
             <div
               key={index}
-              className={`border rounded-lg p-4 space-y-2 transition-all hover:shadow-md ${getTypeColor(insight.type)}`}
+              className={`border rounded-lg p-4 space-y-2 transition-colors hover:shadow-md ${getTypeColor(insight.type)}`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">

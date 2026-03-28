@@ -41,7 +41,7 @@ export function AuctionImage({
           className={cn(
             "absolute inset-0 bg-gradient-to-br",
             speciesVisual.gradient,
-            "transition-all duration-700 group-hover:scale-105"
+            "transition-transform duration-700 group-hover:scale-105"
           )}
         />
 

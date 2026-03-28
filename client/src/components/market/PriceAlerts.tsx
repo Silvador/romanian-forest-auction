@@ -224,7 +224,7 @@ export function PriceAlerts({ hasActiveFilters }: PriceAlertsProps) {
   const inactiveAlerts = alerts.filter(a => !a.active);
 
   return (
-    <Card data-testid="card-price-alerts" className="transition-all duration-200 ease-out">
+    <Card data-testid="card-price-alerts" className="transition-colors duration-200 ease-out">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>

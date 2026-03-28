@@ -24,7 +24,7 @@ export function MetricChip({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-200",
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors duration-200",
         toneStyles[tone],
         className
       )}

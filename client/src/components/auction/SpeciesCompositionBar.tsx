@@ -61,7 +61,7 @@ export function SpeciesCompositionBar({
             <Tooltip key={`${segment.species}-${index}`}>
               <TooltipTrigger asChild>
                 <div
-                  className="relative transition-all duration-200 hover:brightness-110 cursor-pointer flex items-center justify-center"
+                  className="relative transition-[filter] duration-200 hover:brightness-110 cursor-pointer flex items-center justify-center"
                   style={{
                     width: `${segment.percentage}%`,
                     backgroundColor: color,

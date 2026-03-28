@@ -207,7 +207,7 @@ export function MarketPrediction({
   return (
     <Card
       data-testid="card-market-prediction"
-      className="transition-all duration-200 ease-out"
+      className="transition-colors duration-200 ease-out"
     >
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-4">

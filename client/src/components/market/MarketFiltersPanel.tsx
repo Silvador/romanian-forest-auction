@@ -260,7 +260,7 @@ export function MarketFiltersPanel({ filters, setFilters, onResetFilters, hasAct
 
         {/* Active filter chips */}
         {filters.species.map(species => (
-          <Badge key={species} variant="secondary" className="gap-1 transition-all duration-200">
+          <Badge key={species} variant="secondary" className="gap-1 transition-colors duration-200">
             {species}
             <button
               onClick={() => removeSpeciesFilter(species)}
@@ -273,7 +273,7 @@ export function MarketFiltersPanel({ filters, setFilters, onResetFilters, hasAct
         ))}
 
         {filters.regions.map(region => (
-          <Badge key={region} variant="secondary" className="gap-1 transition-all duration-200">
+          <Badge key={region} variant="secondary" className="gap-1 transition-colors duration-200">
             {region}
             <button
               onClick={() => removeRegionFilter(region)}
@@ -286,7 +286,7 @@ export function MarketFiltersPanel({ filters, setFilters, onResetFilters, hasAct
         ))}
 
         {filters.minVolume !== undefined && (
-          <Badge variant="secondary" className="gap-1 transition-all duration-200">
+          <Badge variant="secondary" className="gap-1 transition-colors duration-200">
             Vol ≥ {filters.minVolume} m³
             <button
               onClick={() => updateVolumeRange(undefined, filters.maxVolume)}
@@ -298,7 +298,7 @@ export function MarketFiltersPanel({ filters, setFilters, onResetFilters, hasAct
         )}
 
         {filters.maxVolume !== undefined && (
-          <Badge variant="secondary" className="gap-1 transition-all duration-200">
+          <Badge variant="secondary" className="gap-1 transition-colors duration-200">
             Vol ≤ {filters.maxVolume} m³
             <button
               onClick={() => updateVolumeRange(filters.minVolume, undefined)}
@@ -310,7 +310,7 @@ export function MarketFiltersPanel({ filters, setFilters, onResetFilters, hasAct
         )}
 
         {filters.minPrice !== undefined && (
-          <Badge variant="secondary" className="gap-1 transition-all duration-200">
+          <Badge variant="secondary" className="gap-1 transition-colors duration-200">
             Price ≥ €{filters.minPrice}/m³
             <button
               onClick={() => updatePriceRange(undefined, filters.maxPrice)}
@@ -322,7 +322,7 @@ export function MarketFiltersPanel({ filters, setFilters, onResetFilters, hasAct
         )}
 
         {filters.maxPrice !== undefined && (
-          <Badge variant="secondary" className="gap-1 transition-all duration-200">
+          <Badge variant="secondary" className="gap-1 transition-colors duration-200">
             Price ≤ €{filters.maxPrice}/m³
             <button
               onClick={() => updatePriceRange(filters.minPrice, undefined)}
@@ -334,7 +334,7 @@ export function MarketFiltersPanel({ filters, setFilters, onResetFilters, hasAct
         )}
 
         {filters.dateRange !== "30d" && (
-          <Badge variant="secondary" className="gap-1 transition-all duration-200">
+          <Badge variant="secondary" className="gap-1 transition-colors duration-200">
             {dateRangeOptions.find(opt => opt.value === filters.dateRange)?.label}
             <button
               onClick={() => updateDateRange("30d")}

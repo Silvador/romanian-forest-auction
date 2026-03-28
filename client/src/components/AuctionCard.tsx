@@ -100,7 +100,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
     <Link href={`/auction/${auction.id}`}>
       <CardHeatRing heatScore={heatScore}>
         <div
-          className="p-4 rounded-lg hover-elevate-card transition-all bg-background/80 border border-border/40 h-full flex flex-col"
+          className="p-4 rounded-lg hover-elevate-card transition-colors bg-background/80 border border-border/40 h-full flex flex-col"
           data-testid={`card-auction-${auction.id}`}
         >
           {/* Species Composition Bar - Data-Driven Header */}
@@ -154,7 +154,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
             <div className="flex-1">
               <div
                 className={cn(
-                  "text-3xl font-bold tracking-tight tabular-nums px-1 rounded-sm transition-all",
+                  "text-3xl font-bold tracking-tight tabular-nums px-1 rounded-sm transition-colors",
                   flashClass
                 )}
                 data-testid={`text-bid-${auction.id}`}
