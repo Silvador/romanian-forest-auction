@@ -76,9 +76,10 @@ export function AuctionCard({ auction }: AuctionCardProps) {
   // Heat score for glow effect
   const heatScore = calculateHeat(auction.bidCount, auction.endTime);
 
-  // APV and Production Unit for title
-  const apvNumber = auction.apvPermitNumber || "N/A";
-  const productionUnit = auction.apvUpLocation || "Unknown UP";
+  // APV and Production Unit for title — fall back to auction title
+  const apvNumber = auction.apvPermitNumber;
+  const productionUnit = auction.apvUpLocation;
+  const hasApvInfo = apvNumber || productionUnit;
 
   // Status determination
   const now = Date.now();
@@ -118,7 +119,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                 className="font-semibold text-base uppercase tracking-widest leading-tight truncate"
                 data-testid={`text-title-${auction.id}`}
               >
-                {apvNumber} • {productionUnit}
+                {hasApvInfo ? `${apvNumber || ""}${apvNumber && productionUnit ? " • " : ""}${productionUnit || ""}` : auction.title}
               </h3>
               <div className="flex items-center gap-2 mt-1">
                 <StatusDot status={auctionStatus} size={8} />
