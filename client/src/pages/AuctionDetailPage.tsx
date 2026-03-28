@@ -327,7 +327,7 @@ export default function AuctionDetailPage() {
 
           {/* RIGHT COLUMN on desktop (price card + recent bids) — rendered first for mobile order */}
           <div className="space-y-6 lg:order-2">
-          <Card className="p-6 lg:sticky lg:top-6">
+          <Card className="p-6 lg:sticky lg:top-6 glass-card">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -374,7 +374,7 @@ export default function AuctionDetailPage() {
 
           {/* LEFT COLUMN on desktop — lot details, description, bids */}
           <div className="space-y-6 lg:order-1">
-          <Card className="p-6">
+          <Card className="p-6 glass-card">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-primary" />
               Lot Details
@@ -593,7 +593,7 @@ export default function AuctionDetailPage() {
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-6 glass-card">
             <h3 className="font-semibold mb-3">Description</h3>
             <p className="text-muted-foreground whitespace-pre-wrap" data-testid="text-description">
               {auction.description}
@@ -601,7 +601,7 @@ export default function AuctionDetailPage() {
           </Card>
 
           {(auction.apvPermitNumber || auction.apvUpLocation || auction.apvDateOfMarking) && (
-            <Card className="p-6">
+            <Card className="p-6 glass-card">
               <h3 className="font-semibold mb-4 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />
                 APV Permit Details
@@ -737,7 +737,7 @@ export default function AuctionDetailPage() {
 
           {/* Documents Section */}
           {auction.documents && auction.documents.length > 0 && (
-            <Card className="p-6">
+            <Card className="p-6 glass-card">
               <h3 className="font-semibold mb-4 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />
                 Documents
@@ -755,7 +755,7 @@ export default function AuctionDetailPage() {
           )}
 
           {bids && bids.length > 0 && (
-            <Card className="p-6">
+            <Card className="p-6 glass-card">
               <h3 className="font-semibold mb-4">Recent Bids</h3>
               <div className="space-y-3">
                 {bids.map((bid) => {
@@ -789,7 +789,7 @@ export default function AuctionDetailPage() {
       </div>
 
       {canBid && !bidModalOpen && isAuctionLive && (
-        <div className="fixed bottom-16 lg:bottom-0 left-0 right-0 lg:left-16 bg-card/95 backdrop-blur-sm border-t border-border p-4 z-10">
+        <div className="fixed bottom-16 lg:bottom-0 left-0 right-0 lg:left-16 bg-background/80 backdrop-blur-xl border-t border-border p-4 z-10">
           <div className="max-w-5xl mx-auto space-y-3">
             {/* Main price and bid button row */}
             <div className="flex items-center justify-between gap-4">

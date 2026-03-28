@@ -265,7 +265,7 @@ export default function MarketPage() {
 
         {/* Stats Cards with animation on filter change */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-colors duration-200 ease-out">
-          <Card data-testid="card-total-volume">
+          <Card data-testid="card-total-volume" className="glass-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Volume Sold</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
@@ -276,7 +276,7 @@ export default function MarketPage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-avg-price">
+          <Card data-testid="card-avg-price" className="glass-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Avg. Market Price</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -287,7 +287,7 @@ export default function MarketPage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-popular-species">
+          <Card data-testid="card-popular-species" className="glass-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Most Popular Species</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -298,7 +298,7 @@ export default function MarketPage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-total-auctions">
+          <Card data-testid="card-total-auctions" className="glass-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Completed Auctions</CardTitle>
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
@@ -311,7 +311,7 @@ export default function MarketPage() {
         </div>
 
         {/* Price Trends Chart */}
-        <Card data-testid="card-price-trends" className="transition-colors duration-200 ease-out">
+        <Card data-testid="card-price-trends" className="transition-colors duration-200 ease-out glass-card">
           <CardHeader>
             <CardTitle>Price Trends by Species</CardTitle>
             <p className="text-sm text-muted-foreground">
@@ -366,7 +366,7 @@ export default function MarketPage() {
 
         {/* Volume by Species Chart */}
         {chartData.volumeData.length > 0 && (
-          <Card data-testid="card-volume-species" className="transition-colors duration-200 ease-out">
+          <Card data-testid="card-volume-species" className="transition-colors duration-200 ease-out glass-card">
             <CardHeader>
               <CardTitle>Volume Sold by Species</CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -403,7 +403,7 @@ export default function MarketPage() {
 
         {/* Regional Price Comparison */}
         {chartData.regionalData.length > 0 && (
-          <Card data-testid="card-regional-price" className="transition-colors duration-200 ease-out">
+          <Card data-testid="card-regional-price" className="transition-colors duration-200 ease-out glass-card">
             <CardHeader>
               <CardTitle>Regional Price Comparison</CardTitle>
               <p className="text-sm text-muted-foreground">

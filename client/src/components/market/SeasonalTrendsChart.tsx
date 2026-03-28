@@ -144,7 +144,7 @@ export function SeasonalTrendsChart({ priceTrendsBySpecies, hasActiveFilters }: 
   }
 
   return (
-    <Card data-testid="card-seasonal-trends" className="transition-colors duration-200 ease-out">
+    <Card data-testid="card-seasonal-trends" className="transition-colors duration-200 ease-out glass-card">
       <CardHeader>
         <CardTitle>Seasonal Trends Analysis</CardTitle>
         <p className="text-sm text-muted-foreground">
