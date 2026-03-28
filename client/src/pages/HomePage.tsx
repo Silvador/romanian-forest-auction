@@ -168,16 +168,48 @@ export default function HomePage() {
 
       <div className="max-w-7xl mx-auto">
         {isLoading ? (
-          <div className="px-4 py-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[1, 2, 3, 4, 5, 6].map(i => (
-                <div key={i} className="space-y-3">
-                  <Skeleton className="h-48 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                </div>
-              ))}
+          <div className="py-2">
+            {/* Skeleton header row */}
+            <div className="grid grid-cols-12 gap-2 px-4 py-3 border-b border-border">
+              <Skeleton className="col-span-4 h-4 w-24" />
+              <Skeleton className="col-span-2 h-4 w-16" />
+              <Skeleton className="col-span-2 h-4 w-20" />
+              <Skeleton className="col-span-1 h-4 w-8 mx-auto" />
+              <Skeleton className="col-span-3 h-4 w-12 ml-auto" />
             </div>
+            {/* Skeleton auction rows */}
+            {[1, 2, 3].map(i => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: i * 0.1, duration: 0.3 }}
+                className="grid grid-cols-12 gap-2 px-4 py-4 border-b border-border"
+              >
+                <div className="col-span-4 flex items-center gap-3">
+                  <Skeleton className="h-6 w-12 rounded-full" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </div>
+                <div className="col-span-2 flex flex-col justify-center gap-1">
+                  <Skeleton className="h-5 w-20" />
+                  <Skeleton className="h-3 w-12" />
+                </div>
+                <div className="col-span-2 flex flex-col justify-center gap-1">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-8" />
+                </div>
+                <div className="col-span-1 flex flex-col items-center justify-center gap-1">
+                  <Skeleton className="h-4 w-6" />
+                  <Skeleton className="h-3 w-8" />
+                </div>
+                <div className="col-span-3 flex items-center justify-end">
+                  <Skeleton className="h-4 w-16" />
+                </div>
+              </motion.div>
+            ))}
           </div>
         ) : auctions && auctions.length > 0 ? (
           <>
@@ -224,20 +256,36 @@ export default function HomePage() {
             )}
           </>
         ) : (
-          <div className="text-center py-16">
-            <Filter className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No auctions found</h3>
-            <p className="text-muted-foreground mb-6">
+          <motion.div
+            className="text-center py-20 px-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          >
+            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-muted/50 flex items-center justify-center">
+              <TreeDeciduous className="w-8 h-8 text-muted-foreground/60" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">
               {Object.keys(filters).some(key => key !== 'sortBy' && filters[key as keyof AuctionFilters])
-                ? "Try adjusting your filters or clear them to see all auctions"
-                : "Be the first to create a listing"}
+                ? "No matching auctions"
+                : "No live auctions right now"}
+            </h3>
+            <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+              {Object.keys(filters).some(key => key !== 'sortBy' && filters[key as keyof AuctionFilters])
+                ? "Try adjusting your filters to broaden your search"
+                : "New timber lots are listed regularly. Check back soon or create your own listing."}
             </p>
-            {userData?.role === "forest_owner" && (
-              <Link href="/create">
-                <Button>Create Listing</Button>
+            <div className="flex items-center justify-center gap-3">
+              {userData?.role === "forest_owner" && (
+                <Link href="/create">
+                  <Button>List Timber</Button>
+                </Link>
+              )}
+              <Link href="/market">
+                <Button variant="outline">View Market Data</Button>
               </Link>
-            )}
-          </div>
+            </div>
+          </motion.div>
         )}
       </div>
     </div>
