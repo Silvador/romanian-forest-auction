@@ -102,7 +102,7 @@ export default function NotificationsPage() {
   const unreadCount = notifications?.filter(n => !n.read).length || 0;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20">
       <div className="max-w-3xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>

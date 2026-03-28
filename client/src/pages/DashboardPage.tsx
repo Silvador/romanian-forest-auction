@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const isForestOwner = userData.role === "forest_owner";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20">
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="mb-8">
