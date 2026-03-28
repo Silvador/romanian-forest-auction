@@ -44,7 +44,7 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
           {species}
         </Badge>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold truncate" data-testid={`text-title-${auction.id}`}>
+          <h3 className="text-base font-semibold truncate" data-testid={`text-title-${auction.id}`}>
             {auction.title}
           </h3>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
