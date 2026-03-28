@@ -24,7 +24,7 @@ if (window.matchMedia('(pointer: fine)').matches) {
   const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
   // Triptych subtle scene rotation
-  const triptych = document.getElementById('phone-triptych');
+  const triptych = document.getElementById('hero-phones');
   if (triptych) {
     let tX = 0, tY = 0, cX = 0, cY = 0;
     document.addEventListener('mousemove', (e) => {

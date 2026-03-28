@@ -438,147 +438,365 @@ p {
   color: var(--muted-strong);
 }
 
-/* Phone Triptych */
-.phone-triptych {
-  position: relative;
+/* ============ Phone Mockups ============ */
+.phones {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  gap: 0;
+  gap: 24px;
   margin: 56px auto 0;
-  max-width: 900px;
-  height: 520px;
-  perspective: 1600px;
+  max-width: 800px;
+  perspective: 1200px;
 }
 
-.phone-glow {
-  position: absolute;
-  width: 50%;
-  height: 60%;
-  top: 20%;
-  left: 25%;
-  background: radial-gradient(ellipse, rgba(238,255,53,0.1) 0%, transparent 60%);
-  filter: blur(50px);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.phone-frame {
-  position: absolute;
-  background: #000;
-  border-radius: 40px;
+.phone {
+  position: relative;
+  background: #111;
+  border-radius: 32px;
   padding: 8px;
-  border: 2px solid rgba(255,255,255,0.1);
-  box-shadow:
-    0 40px 80px rgba(0,0,0,0.6),
-    0 0 0 1px rgba(255,255,255,0.04),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-  transition: transform 0.6s cubic-bezier(0.22,1,0.36,1), box-shadow 0.6s cubic-bezier(0.22,1,0.36,1);
-  will-change: transform;
-  z-index: 1;
+  border: 2px solid rgba(255,255,255,0.08);
+  box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+  transition: transform 0.5s cubic-bezier(0.22,1,0.36,1);
+  overflow: hidden;
 }
 
-.phone-frame img {
+/* phone img fallback — only if using screenshots */
+.phone > img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: top;
-  border-radius: 32px;
   display: block;
+  border-radius: 24px;
 }
 
-.phone-notch {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80px;
-  height: 24px;
-  background: #000;
-  border-radius: 12px;
-  z-index: 3;
-}
-
-.phone-label {
-  position: absolute;
-  bottom: -32px;
-  left: 0;
-  right: 0;
+.phone-tag {
+  display: block;
   text-align: center;
+  padding: 10px 0 4px;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--muted);
-  opacity: 0;
-  transition: opacity 0.4s ease;
+  letter-spacing: -0.02em;
 }
 
-.phone-triptych:hover .phone-label {
-  opacity: 1;
+/* ---- Phone UI (hand-crafted screens) ---- */
+.phone-ui {
+  background: #0a0a0a;
+  border-radius: 24px;
+  padding: 20px 14px 14px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 11px;
+  color: #ccc;
+  overflow: hidden;
 }
 
-/* Center phone — front and largest */
-.phone-frame--center {
-  width: 220px;
-  height: 460px;
+.pui-header {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.03em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.pui-badge {
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(238,255,53,0.15);
+  color: #eeff35;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.pui-chart {
+  background: rgba(255,255,255,0.03);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.pui-sparkline {
+  width: 100%;
+  height: auto;
+}
+
+.pui-chart-label {
+  font-size: 10px;
+  color: #eeff35;
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.pui-stat-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pui-stat {
+  flex: 1;
+  background: rgba(255,255,255,0.04);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pui-stat-val {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.03em;
+}
+
+.pui-stat-lbl {
+  font-size: 9px;
+  color: #888;
+}
+
+.pui-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pui-bar-lbl {
+  font-size: 9px;
+  color: #888;
+  width: 70px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.pui-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pui-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.pui-auction {
+  background: rgba(255,255,255,0.04);
+  border-radius: 12px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.pui-auction--sold {
+  border-color: rgba(78,205,196,0.15);
+}
+
+.pui-auction-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pui-species {
+  background: #eeff35;
+  color: #000;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.pui-species--sold {
+  background: #4ecdc4;
+  color: #000;
+}
+
+.pui-auction-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pui-auction-info strong {
+  display: block;
+  font-size: 11px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pui-loc {
+  font-size: 9px;
+  color: #777;
+}
+
+.pui-auction-price {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #eeff35;
+  flex-shrink: 0;
+  letter-spacing: -0.02em;
+}
+
+.pui-auction-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #777;
+  padding-top: 6px;
+}
+
+.pui-time {
+  color: #eeff35;
+}
+
+.pui-cta {
+  text-align: center;
+  padding: 10px;
+  background: linear-gradient(180deg, #f2ff53, #e6fb2f);
+  color: #080808;
+  font-weight: 800;
+  font-size: 11px;
+  border-radius: 10px;
+  margin-top: auto;
+}
+
+/* Status bar */
+.pui-statusbar {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  font-weight: 600;
+  color: #fff;
+  padding: 0 2px 4px;
+}
+.pui-statusbar-r { font-size: 8px; letter-spacing: 1px; }
+
+/* Tabs */
+.pui-tabs {
+  display: flex;
+  gap: 0;
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 2px;
+}
+.pui-tab {
+  flex: 1;
+  text-align: center;
+  padding: 5px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  color: #666;
+  border-radius: 6px;
+  cursor: default;
+}
+.pui-tab.active {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+}
+
+/* Chart enhancements */
+.pui-chart-price {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.03em;
+  margin-bottom: 6px;
+}
+.pui-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  color: #555;
+  margin-top: 4px;
+}
+
+/* Section label */
+.pui-section-lbl {
+  font-size: 9px;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding-top: 2px;
+}
+
+/* Bar value */
+.pui-bar-val {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Bottom nav */
+.pui-nav {
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 0 2px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin-top: auto;
+  font-size: 14px;
+  filter: grayscale(1) brightness(0.5);
+}
+.pui-nav-item {
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.pui-nav-item.active {
+  filter: grayscale(0) brightness(1.2);
+}
+
+/* Center — largest */
+.phone--center {
+  width: 240px;
+  height: 470px;
   z-index: 3;
-  transform: translateZ(60px);
+  transform: translateY(0);
 }
 
-.phone-frame--center:hover {
-  transform: translateZ(80px) translateY(-8px);
-  box-shadow:
-    0 50px 100px rgba(0,0,0,0.7),
-    0 0 60px rgba(238,255,53,0.08),
-    0 0 0 1px rgba(238,255,53,0.1);
+.phone--center:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 40px rgba(238,255,53,0.06);
 }
 
-/* Left phone — smaller, rotated, behind */
-.phone-frame--left {
-  width: 190px;
+/* Side phones — smaller, angled */
+.phone--left,
+.phone--right {
+  width: 200px;
   height: 400px;
   z-index: 2;
-  transform: translateX(-240px) translateZ(-40px) rotateY(18deg);
+  opacity: 0.88;
 }
 
-.phone-frame--left:hover {
-  transform: translateX(-240px) translateZ(-20px) rotateY(12deg) translateY(-8px);
-  box-shadow:
-    0 50px 100px rgba(0,0,0,0.7),
-    0 0 40px rgba(238,255,53,0.06);
+.phone--left {
+  transform: rotateY(10deg);
 }
 
-/* Right phone — smaller, rotated, behind */
-.phone-frame--right {
-  width: 190px;
-  height: 400px;
-  z-index: 2;
-  transform: translateX(240px) translateZ(-40px) rotateY(-18deg);
+.phone--right {
+  transform: rotateY(-10deg);
 }
 
-.phone-frame--right:hover {
-  transform: translateX(240px) translateZ(-20px) rotateY(-12deg) translateY(-8px);
-  box-shadow:
-    0 50px 100px rgba(0,0,0,0.7),
-    0 0 40px rgba(238,255,53,0.06);
-}
-
-/* Reflection under center phone */
-.phone-frame--center::after {
-  content: '';
-  position: absolute;
-  bottom: -100%;
-  left: 5%;
-  width: 90%;
-  height: 90%;
-  background: inherit;
-  border-radius: 32px;
-  transform: scaleY(-1);
-  opacity: 0.08;
-  filter: blur(6px);
-  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.3), transparent 50%);
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.3), transparent 50%);
-  pointer-events: none;
+.phone--left:hover,
+.phone--right:hover {
+  opacity: 1;
+  transform: rotateY(0deg) translateY(-6px);
+  box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 30px rgba(238,255,53,0.05);
 }
 
 /* Hero ticker strip (replaces stat cards) */
@@ -1103,29 +1321,47 @@ p {
     grid-template-columns: 1fr;
   }
 
-  .phone-triptych {
-    height: 380px;
+  .phones {
+    gap: 10px;
   }
 
-  .phone-frame--center {
-    width: 170px;
-    height: 360px;
+  .phone--center {
+    width: 180px;
+    height: 350px;
   }
 
-  .phone-frame--left {
+  .phone--left,
+  .phone--right {
     width: 140px;
-    height: 300px;
-    transform: translateX(-160px) translateZ(-40px) rotateY(18deg);
+    height: 290px;
   }
 
-  .phone-frame--right {
-    width: 140px;
-    height: 300px;
-    transform: translateX(160px) translateZ(-40px) rotateY(-18deg);
+  .phone {
+    border-radius: 22px;
+    padding: 5px;
   }
 
-  .phone-label {
-    display: none;
+  .phone-ui {
+    padding: 14px 10px 10px;
+    gap: 8px;
+    border-radius: 18px;
+  }
+
+  .pui-header {
+    font-size: 13px;
+  }
+
+  .pui-stat-val {
+    font-size: 14px;
+  }
+
+  .pui-auction {
+    padding: 8px;
+  }
+
+  .phone-tag {
+    font-size: 0.65rem;
+    padding: 6px 0 2px;
   }
 
   .hero-ticker {
