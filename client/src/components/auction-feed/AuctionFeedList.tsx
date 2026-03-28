@@ -21,16 +21,16 @@ export function AuctionFeedList({ auctions }: AuctionFeedListProps) {
         <div className="col-span-4 text-xs font-semibold text-muted-foreground uppercase">
           Auction
         </div>
-        <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase">
+        <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tabular-nums">
           Price/m³
         </div>
-        <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase">
+        <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tabular-nums">
           Total Value
         </div>
-        <div className="col-span-1 text-xs font-semibold text-muted-foreground uppercase text-center">
+        <div className="col-span-1 text-xs font-semibold text-muted-foreground uppercase text-center tabular-nums">
           Bids
         </div>
-        <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase text-right">
+        <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase text-right tabular-nums">
           Time Left
         </div>
       </div>

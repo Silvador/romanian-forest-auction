@@ -335,7 +335,7 @@ export default function AuctionDetailPage() {
                     </span>
                   </div>
                 </div>
-                <div className="text-4xl font-bold text-primary mb-1" data-testid="text-current-bid">
+                <div className="text-4xl font-bold text-primary mb-1 tabular-nums" data-testid="text-current-bid">
                   {formatPricePerM3(currentPricePerM3)}
                 </div>
                 <div className="text-sm text-muted-foreground">
@@ -762,10 +762,10 @@ export default function AuctionDetailPage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold text-primary">
+                        <div className="text-lg font-bold text-primary tabular-nums">
                           {formatPricePerM3(bidPerM3)}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground tabular-nums">
                           {formatProjectedTotal(calculateProjectedTotal(bidPerM3, auction.volumeM3))}
                         </div>
                       </div>
