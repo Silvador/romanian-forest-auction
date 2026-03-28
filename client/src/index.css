@@ -76,7 +76,7 @@
   --chart-4: 120 40% 35%;
   --chart-5: 0 84% 55%;
 
-  --font-sans: -apple-system, SF Pro Display, Roboto, Open Sans, sans-serif;
+  --font-sans: 'Inter', -apple-system, SF Pro Display, Roboto, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
   --radius: .5rem; /* 8px */
