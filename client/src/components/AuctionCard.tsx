@@ -1,5 +1,5 @@
 import { Auction } from "@shared/schema";
-import { Trees, Gavel, Flame } from "lucide-react";
+import { Trees, Gavel, Flame, MapPin, TreePine } from "lucide-react";
 import {
   formatVolume,
   formatTimeRemaining,
@@ -130,7 +130,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               {/* APV & Region Info */}
               <div className="mt-1.5 space-y-0.5">
                 <div className="text-xs text-muted-foreground truncate">
-                  <span className="font-medium">📍 {auction.region}</span>
+                  <span className="font-medium inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{auction.region}</span>
                 </div>
                 {auction.apvPermitNumber && (
                   <div className="text-xs text-muted-foreground truncate">
@@ -139,7 +139,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                 )}
                 {auction.apvTreatmentType && (
                   <div className="text-xs text-muted-foreground truncate">
-                    <span className="font-medium">🌲 {auction.apvTreatmentType}</span>
+                    <span className="font-medium inline-flex items-center gap-1"><TreePine className="w-3 h-3" />{auction.apvTreatmentType}</span>
                   </div>
                 )}
               </div>
