@@ -235,12 +235,21 @@
 }
 
 @layer base {
+  html {
+    color-scheme: dark;
+  }
+
   * {
     @apply border-border;
   }
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
