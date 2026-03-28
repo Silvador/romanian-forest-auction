@@ -114,7 +114,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Auctions</h1>
+              <h1 className="text-4xl lg:text-5xl font-bold">Auctions</h1>
               <p className="text-sm text-muted-foreground">
                 {auctions?.length || 0} {isCompleted ? "completed" : "active"} listings
               </p>
@@ -219,12 +219,12 @@ export default function HomePage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.25 + i * 0.06, duration: 0.35, ease: "easeOut" }}
                     >
-                      <Card className="p-4">
+                      <Card className="p-4 glass-card">
                         <div className="flex items-center gap-2 text-muted-foreground mb-2">
                           {stat.icon}
                           <span className="text-xs font-medium uppercase">{stat.label}</span>
                         </div>
-                        <div className="text-2xl font-bold tabular-nums">{stat.value}</div>
+                        <div className="text-2xl font-display font-bold tabular-nums">{stat.value}</div>
                         <div className="text-xs text-muted-foreground">{stat.sub}</div>
                       </Card>
                     </motion.div>

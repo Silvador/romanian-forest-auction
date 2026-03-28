@@ -249,7 +249,7 @@ export default function MarketPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">Market Dashboard</h1>
+          <h1 className="text-4xl lg:text-5xl font-bold mb-2">Market Dashboard</h1>
           <p className="text-muted-foreground">Timber market insights and analytics</p>
         </div>
 
