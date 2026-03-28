@@ -65,7 +65,10 @@ export function calculateProjectedTotal(pricePerM3: number, volumeM3: number): n
  */
 export function formatPricePerM3(pricePerM3: number | undefined | null | any): string {
   const value = typeof pricePerM3 === 'number' ? pricePerM3 : 0;
-  return `€${value.toFixed(1)}/m³`;
+  const formatted = Number.isInteger(value)
+    ? value.toLocaleString('de-DE')
+    : value.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+  return `€${formatted}/m³`;
 }
 
 /**
