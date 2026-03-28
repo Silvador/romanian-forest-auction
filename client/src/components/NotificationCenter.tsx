@@ -185,7 +185,7 @@ export function NotificationCenter() {
             notifications.map((notification) => (
               <DropdownMenuItem
                 key={notification.id}
-                className={`cursor-pointer p-4 ${!notification.read ? "bg-accent/50" : ""}`}
+                className={`cursor-pointer p-4 ${!notification.read ? "bg-accent/10 border border-accent/20 rounded-lg" : ""}`}
                 onClick={() => handleNotificationClick(notification)}
                 data-testid={`notification-${notification.id}`}
               >
