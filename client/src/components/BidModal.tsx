@@ -198,7 +198,7 @@ export function BidModal({ auction, open, onOpenChange, onPlaceBid, initialBidPe
 
               <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2 border-t border-border mt-2">
                 <TrendingUp className="w-4 h-4" />
-                <span>{auction.bidCount} {auction.bidCount === 1 ? 'bid' : 'bids'} placed • {auction.volumeM3}m³ • {dominantSpecies}</span>
+                <span>{auction.bidCount} {auction.bidCount === 1 ? 'bid' : 'bids'} placed • {auction.volumeM3.toLocaleString('ro-RO')} m³ • {dominantSpecies}</span>
               </div>
             </div>
           </div>

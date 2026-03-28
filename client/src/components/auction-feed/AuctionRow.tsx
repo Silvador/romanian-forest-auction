@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { MapPin, TrendingUp, Clock, Flame } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatPricePerM3, formatProjectedTotal } from "@/utils/incrementLadder";
-import { formatTimeRemaining, isAuctionEndingSoon } from "@/utils/formatters";
+import { formatTimeRemaining, isAuctionEndingSoon, formatVolume } from "@/utils/formatters";
 import { Auction } from "@shared/schema";
 
 interface AuctionRowProps {
@@ -66,7 +66,7 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
           {formatPricePerM3(pricePerM3)}
         </div>
         <div className="text-xs text-muted-foreground tabular-nums">
-          {auction.volumeM3}m³
+          {formatVolume(auction.volumeM3)}
         </div>
       </div>
 
