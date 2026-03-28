@@ -38,6 +38,7 @@ export function DualViewAuctionFeed({ auctions }: DualViewAuctionFeedProps) {
           onClick={toggleView}
           className="gap-2 font-semibold"
           data-testid="button-toggle-view"
+          aria-label={`Switch to ${viewMode === "list" ? "grid" : "list"} view`}
         >
           <motion.div
             key={viewMode}

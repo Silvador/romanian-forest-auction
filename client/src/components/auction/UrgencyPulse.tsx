@@ -52,8 +52,8 @@ export function UrgencyPulse({
           : "border-negative/40 bg-negative/15"
       )}
     >
-      <Clock className="w-4 h-4 flex-shrink-0" />
-      <span className="text-sm font-bold tracking-tight whitespace-nowrap">
+      <Clock className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+      <span className="text-sm font-bold tracking-tight whitespace-nowrap" aria-live="polite" aria-label={`Time remaining: ${timeRemaining}`}>
         {timeRemaining}
       </span>
     </div>

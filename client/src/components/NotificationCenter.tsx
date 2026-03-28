@@ -155,6 +155,7 @@ export function NotificationCenter() {
           size="icon"
           className="relative"
           data-testid="button-notifications"
+          aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
         >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
