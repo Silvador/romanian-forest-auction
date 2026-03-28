@@ -436,7 +436,7 @@ export default function MarketPage() {
                     }}
                   />
                   <Bar dataKey="avgPricePerM3">
-                    {chartData.avgPriceByRegion.map((_: any, index: number) => {
+                    {chartData.regionalData.map((_: any, index: number) => {
                       const colors = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
                       return <Cell key={index} fill={colors[index % colors.length]} />;
                     })}
