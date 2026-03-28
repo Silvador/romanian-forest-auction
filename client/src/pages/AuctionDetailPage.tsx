@@ -309,7 +309,7 @@ export default function AuctionDetailPage() {
 
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold mb-2" data-testid="text-title">{auction.title}</h1>
+            <h1 className="text-3xl font-bold tracking-tight mb-2" data-testid="text-title">{auction.title}</h1>
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-1.5">
                 <MapPin className="w-4 h-4" />
@@ -326,7 +326,7 @@ export default function AuctionDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-muted-foreground">Current Price</h3>
+                  <div className="text-sm font-medium text-muted-foreground">Current Price</div>
                   {/* Data freshness indicator */}
                   <div className="flex items-center gap-1.5 text-xs">
                     <RefreshCw className={`w-3 h-3 ${isFetching ? 'animate-spin text-amber-500' : 'text-primary'}`} />

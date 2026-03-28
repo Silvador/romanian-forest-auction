@@ -24,7 +24,7 @@ export function DualViewAuctionFeed({ auctions }: DualViewAuctionFeedProps) {
       {/* View Toggle Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-bold">
+          <h2 className="text-xl font-bold tracking-tight">
             Live Timber Auctions
           </h2>
           <span className="text-sm text-muted-foreground">

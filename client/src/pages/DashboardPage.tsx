@@ -30,7 +30,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold" data-testid="text-dashboard-title">
+            <h1 className="text-3xl font-bold tracking-tight" data-testid="text-dashboard-title">
               {isForestOwner ? "Forest Owner Dashboard" : "Buyer Dashboard"}
             </h1>
             <div className="flex items-center gap-2">

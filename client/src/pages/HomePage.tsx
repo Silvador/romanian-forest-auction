@@ -136,7 +136,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-2xl font-bold">Live Auctions</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Live Auctions</h1>
               <p className="text-sm text-muted-foreground">
                 {auctions?.length || 0} active listings
               </p>
@@ -183,7 +183,7 @@ export default function HomePage() {
             <DualViewAuctionFeed auctions={auctions} />
             {auctions.length <= 3 && (
               <div className="px-4 py-6 border-t border-border">
-                <h2 className="text-lg font-semibold mb-4 text-muted-foreground">Market Snapshot</h2>
+                <h2 className="text-xl font-semibold mb-4 text-muted-foreground">Market Snapshot</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <Card className="p-4">
                     <div className="flex items-center gap-2 text-muted-foreground mb-2">

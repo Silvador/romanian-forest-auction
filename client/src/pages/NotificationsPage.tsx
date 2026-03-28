@@ -106,7 +106,7 @@ export default function NotificationsPage() {
       <div className="max-w-3xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold">Notifications</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Notifications</h1>
             {unreadCount > 0 && (
               <p className="text-sm text-muted-foreground mt-1">
                 {unreadCount} unread {unreadCount === 1 ? 'notification' : 'notifications'}
