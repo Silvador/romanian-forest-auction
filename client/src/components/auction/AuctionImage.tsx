@@ -36,7 +36,7 @@ export function AuctionImage({
           className
         )}
       >
-        {/* Gradient Background */}
+        {/* Species gradient background */}
         <div
           className={cn(
             "absolute inset-0 bg-gradient-to-br",
@@ -45,18 +45,8 @@ export function AuctionImage({
           )}
         />
 
-        {/* Subtle texture overlay */}
-        <div
-          className="absolute inset-0 opacity-5"
-          style={{
-            backgroundImage: `radial-gradient(circle at 25% 25%, white 1px, transparent 1px),
-                             radial-gradient(circle at 75% 75%, white 1px, transparent 1px)`,
-            backgroundSize: '60px 60px'
-          }}
-        />
-
-        {/* Vignette effect */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
+        {/* Vignette for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
 
         {/* Content Container - Centered */}
         <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
