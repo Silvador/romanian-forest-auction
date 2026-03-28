@@ -814,7 +814,7 @@ export default function AuctionDetailPage() {
                       setBidModalOpen(true);
                     }}
                   >
-                    Quick Raise
+                    Raise
                   </Button>
                 )}
                 <Button
@@ -827,7 +827,7 @@ export default function AuctionDetailPage() {
                   }}
                   data-testid="button-place-bid"
                 >
-                  Place Bid
+                  Bid Now
                 </Button>
               </div>
             </div>

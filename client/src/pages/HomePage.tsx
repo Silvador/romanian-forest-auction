@@ -149,7 +149,7 @@ export default function HomePage() {
                 <Link href="/create">
                   <Button size="default" className="gap-2" data-testid="button-create-listing">
                     <Plus className="w-4 h-4" />
-                    <span className="hidden sm:inline">Create Listing</span>
+                    <span className="hidden sm:inline">List Timber</span>
                   </Button>
                 </Link>
               )}

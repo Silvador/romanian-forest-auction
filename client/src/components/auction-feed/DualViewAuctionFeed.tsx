@@ -52,7 +52,7 @@ export function DualViewAuctionFeed({ auctions }: DualViewAuctionFeedProps) {
             )}
           </motion.div>
           <span className="hidden sm:inline">
-            {viewMode === "list" ? "Grid View" : "List View"}
+            {viewMode === "list" ? "Grid" : "List"}
           </span>
         </Button>
       </div>

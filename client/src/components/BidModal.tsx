@@ -337,7 +337,7 @@ export function BidModal({ auction, open, onOpenChange, onPlaceBid, initialBidPe
                 ) : (
                   <>
                     <Zap className="w-5 h-5 mr-2" />
-                    {isEndingSoon ? 'BID NOW!' : 'Place Bid'}
+                    {isEndingSoon ? 'Bid Now!' : 'Bid Now'}
                   </>
                 )}
               </Button>

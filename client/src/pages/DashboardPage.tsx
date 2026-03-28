@@ -38,7 +38,7 @@ export default function DashboardPage() {
                 <Link href="/create-listing">
                   <Button variant="default" className="gap-2" data-testid="button-create-listing">
                     <Plus className="w-4 h-4" />
-                    Create Listing
+                    List Timber
                   </Button>
                 </Link>
               )}

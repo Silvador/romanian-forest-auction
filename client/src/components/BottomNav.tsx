@@ -10,7 +10,7 @@ export function BottomNav() {
   const navItems = [
     { icon: Home, label: "Feed", path: "/", testId: "nav-feed" },
     ...(userData?.role === "forest_owner"
-      ? [{ icon: PlusCircle, label: "Create", path: "/create", testId: "nav-create" }]
+      ? [{ icon: PlusCircle, label: "List", path: "/create", testId: "nav-create" }]
       : []
     ),
     { icon: BarChart3, label: "Market", path: "/market", testId: "nav-market" },
