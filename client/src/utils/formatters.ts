@@ -60,6 +60,13 @@ export function getRelativeTime(timestamp: number): string {
   return `${days}d ago`;
 }
 
+export function formatEndedDate(endTime: number): string {
+  const diff = Date.now() - endTime;
+  const days = Math.floor(diff / 86400000);
+  if (days < 7) return `Ended ${getRelativeTime(endTime)}`;
+  return `Ended ${new Date(endTime).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+}
+
 export function getSpeciesColor(species: string): string {
   const colors: Record<string, string> = {
     Stejar: "hsl(30 80% 50%)",

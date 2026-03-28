@@ -1,5 +1,5 @@
 import { Auction } from "@shared/schema";
-import { Trees, Gavel, Flame, MapPin, TreePine } from "lucide-react";
+import { Trees, Gavel, Flame, MapPin, TreePine, CheckCircle2 } from "lucide-react";
 import {
   formatVolume,
   formatTimeRemaining,
@@ -8,6 +8,7 @@ import {
   calculateHeat,
 } from "@/utils/formatters";
 import { formatPricePerM3 } from "@/utils/incrementLadder";
+import { formatEndedDate } from "@/utils/formatters";
 import { Link } from "wouter";
 import { WatchlistButton } from "./WatchlistButton";
 import { SpeciesCompositionBar } from "./auction/SpeciesCompositionBar";
@@ -73,9 +74,6 @@ export function AuctionCard({ auction }: AuctionCardProps) {
     }
   }, [pricePerM3]);
 
-  // Heat score for glow effect
-  const heatScore = calculateHeat(auction.bidCount, auction.endTime);
-
   // APV and Production Unit for title — fall back to auction title
   const apvNumber = auction.apvPermitNumber;
   const productionUnit = auction.apvUpLocation;
@@ -89,6 +87,9 @@ export function AuctionCard({ auction }: AuctionCardProps) {
       : auction.startTime > now
       ? "upcoming"
       : "ended";
+
+  // Heat score for glow effect (suppress for ended auctions)
+  const heatScore = auctionStatus === "ended" ? "low" as const : calculateHeat(auction.bidCount, auction.endTime);
 
   // Convert species breakdown to SpeciesCompositionBar format
   const speciesSegments = auction.speciesBreakdown.map((item) => ({
@@ -216,9 +217,19 @@ export function AuctionCard({ auction }: AuctionCardProps) {
             )}
           </div>
 
-          {/* Footer - Urgency Pulse */}
+          {/* Footer */}
           <div className="mt-auto pt-3 border-t border-border/40">
-            <UrgencyPulse endTime={auction.endTime} timeRemaining={timeRemaining} />
+            {auctionStatus === "ended" ? (
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className={`w-4 h-4 ${auction.bidCount > 0 ? 'text-positive' : 'text-muted-foreground'}`} />
+                  <span className="font-medium">{auction.bidCount > 0 ? 'Sold' : 'No bids'}</span>
+                </div>
+                <span className="text-xs text-muted-foreground">{formatEndedDate(auction.endTime)}</span>
+              </div>
+            ) : (
+              <UrgencyPulse endTime={auction.endTime} timeRemaining={timeRemaining} />
+            )}
           </div>
         </div>
       </CardHeatRing>

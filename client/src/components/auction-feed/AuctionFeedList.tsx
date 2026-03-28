@@ -5,9 +5,10 @@ import { Auction } from "@shared/schema";
 
 interface AuctionFeedListProps {
   auctions: Auction[];
+  isCompleted?: boolean;
 }
 
-export function AuctionFeedList({ auctions }: AuctionFeedListProps) {
+export function AuctionFeedList({ auctions, isCompleted = false }: AuctionFeedListProps) {
   const [, setLocation] = useLocation();
 
   const handleAuctionClick = (auctionId: string) => {
@@ -22,7 +23,7 @@ export function AuctionFeedList({ auctions }: AuctionFeedListProps) {
           Auction
         </div>
         <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tabular-nums">
-          Price/m³
+          {isCompleted ? "Final Price" : "Price/m³"}
         </div>
         <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tabular-nums">
           Total Value
@@ -31,7 +32,7 @@ export function AuctionFeedList({ auctions }: AuctionFeedListProps) {
           Bids
         </div>
         <div className="col-span-3 text-xs font-semibold text-muted-foreground uppercase text-right tabular-nums">
-          Time Left
+          {isCompleted ? "Result" : "Time Left"}
         </div>
       </div>
 
@@ -43,6 +44,7 @@ export function AuctionFeedList({ auctions }: AuctionFeedListProps) {
             auction={auction}
             onClick={() => handleAuctionClick(auction.id)}
             delay={index * 0.05}
+            isCompleted={isCompleted}
           />
         ))}
       </AnimatePresence>

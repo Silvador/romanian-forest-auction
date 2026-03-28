@@ -10,9 +10,10 @@ type ViewMode = "list" | "grid";
 
 interface DualViewAuctionFeedProps {
   auctions: Auction[];
+  isCompleted?: boolean;
 }
 
-export function DualViewAuctionFeed({ auctions }: DualViewAuctionFeedProps) {
+export function DualViewAuctionFeed({ auctions, isCompleted = false }: DualViewAuctionFeedProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
   const toggleView = () => {
@@ -25,7 +26,7 @@ export function DualViewAuctionFeed({ auctions }: DualViewAuctionFeedProps) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold tracking-tight">
-            Live Timber Auctions
+            {isCompleted ? "Completed Auctions" : "Live Timber Auctions"}
           </h2>
           <span className="text-sm text-muted-foreground">
             {auctions.length} {auctions.length === 1 ? 'auction' : 'auctions'}
@@ -68,7 +69,7 @@ export function DualViewAuctionFeed({ auctions }: DualViewAuctionFeedProps) {
         className="flex-1 overflow-auto"
       >
         {viewMode === "list" ? (
-          <AuctionFeedList auctions={auctions} />
+          <AuctionFeedList auctions={auctions} isCompleted={isCompleted} />
         ) : (
           <AuctionFeedGrid auctions={auctions} />
         )}

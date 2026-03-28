@@ -1,23 +1,24 @@
 import { forwardRef } from "react";
 import { motion } from "framer-motion";
-import { MapPin, TrendingUp, Clock, Flame } from "lucide-react";
+import { MapPin, TrendingUp, Clock, Flame, CheckCircle2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatPricePerM3, formatProjectedTotal } from "@/utils/incrementLadder";
-import { formatTimeRemaining, isAuctionEndingSoon, formatVolume } from "@/utils/formatters";
+import { formatTimeRemaining, isAuctionEndingSoon, formatVolume, formatEndedDate } from "@/utils/formatters";
 import { Auction } from "@shared/schema";
 
 interface AuctionRowProps {
   auction: Auction;
   onClick: () => void;
   delay?: number;
+  isCompleted?: boolean;
 }
 
-export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function AuctionRow({ auction, onClick, delay = 0 }, ref) {
+export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function AuctionRow({ auction, onClick, delay = 0, isCompleted = false }, ref) {
   const timeRemaining = formatTimeRemaining(auction.endTime);
   const isEndingSoon = isAuctionEndingSoon(auction.endTime);
-  const isLive = auction.status === "live";
+  const isLive = auction.status === "active";
+  const hasBids = auction.bidCount > 0;
 
-  // Backward compatibility: calculate values if new fields are missing
   const pricePerM3 = auction.currentPricePerM3 ?? (auction.currentBid && auction.volumeM3 ? auction.currentBid / auction.volumeM3 : 0);
   const projectedTotal = auction.projectedTotalValue ?? (auction.currentBid || 0);
   const species = auction.dominantSpecies || "Amestec";
@@ -28,7 +29,7 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
       layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0, transition: { delay, duration: 0.3, ease: "easeOut" } }}
-      whileHover={{ 
+      whileHover={{
         backgroundColor: "hsl(var(--accent))",
         transition: { duration: 0.15 }
       }}
@@ -39,11 +40,11 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
       {/* Species & Title - 4 cols */}
       <div className="col-span-4 flex items-center gap-3 min-w-0">
         <div className="relative shrink-0">
-          {isLive && (
+          {isLive && !isCompleted && (
             <span className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-positive status-pulse" />
           )}
           <Badge
-            variant={isLive ? "default" : "secondary"}
+            variant={isCompleted ? "secondary" : isLive ? "default" : "secondary"}
             className="font-bold pointer-events-none"
           >
             {species}
@@ -62,7 +63,7 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
 
       {/* Price €/m³ - 2 cols */}
       <div className="col-span-2 flex flex-col justify-center">
-        <div className="text-lg font-bold text-primary tabular-nums" data-testid={`text-price-${auction.id}`}>
+        <div className={`text-lg font-bold tabular-nums ${isCompleted ? 'text-foreground' : 'text-primary'}`} data-testid={`text-price-${auction.id}`}>
           {formatPricePerM3(pricePerM3)}
         </div>
         <div className="text-xs text-muted-foreground tabular-nums">
@@ -91,10 +92,26 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
         <div className="text-xs text-muted-foreground">{auction.bidCount === 1 ? "bid" : "bids"}</div>
       </div>
 
-      {/* Time Remaining - 3 cols */}
+      {/* Last column - 3 cols: Time Left (live) or Result (completed) */}
       <div className="col-span-3 flex items-center justify-end gap-2">
-        {isEndingSoon ? (
-          <motion.div 
+        {isCompleted ? (
+          <div className="flex items-center gap-1.5">
+            {hasBids ? (
+              <CheckCircle2 className="w-4 h-4 text-positive" />
+            ) : (
+              <XCircle className="w-4 h-4 text-muted-foreground" />
+            )}
+            <div className="text-right">
+              <div className="text-sm font-medium">
+                {hasBids ? "Sold" : "No bids"}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {formatEndedDate(auction.endTime).replace("Ended ", "")}
+              </div>
+            </div>
+          </div>
+        ) : isEndingSoon ? (
+          <motion.div
             className="flex items-center gap-1.5 text-destructive"
             animate={{ opacity: [1, 0.5, 1] }}
             transition={{ duration: 1.5, repeat: Infinity }}
@@ -116,7 +133,6 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
         )}
       </div>
 
-      {/* Flash animation placeholder for real-time updates */}
       <motion.div
         className="absolute inset-0 pointer-events-none border-2 border-primary rounded-md opacity-0"
         data-flash-container

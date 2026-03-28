@@ -5,7 +5,8 @@ import { Auction, AuctionFilters } from "@shared/schema";
 import { DualViewAuctionFeed } from "@/components/auction-feed";
 import { AuctionFilterPanel } from "@/components/AuctionFilterPanel";
 import { Button } from "@/components/ui/button";
-import { Plus, Filter, BarChart3, TrendingUp, TreeDeciduous, Clock } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, BarChart3, TrendingUp, TreeDeciduous, Clock } from "lucide-react";
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,8 +15,11 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 import { useFeedUpdates, useWebSocket } from "@/hooks/useWebSocket";
 import { queryClient } from "@/lib/queryClient";
 
+type FeedTab = "live" | "completed";
+
 export default function HomePage() {
   const { userData } = useAuth();
+  const [tab, setTab] = useState<FeedTab>("live");
   const [filters, setFilters] = useState<AuctionFilters>({});
 
   const { connected } = useWebSocket();
@@ -24,8 +28,6 @@ export default function HomePage() {
   const { data: allAuctions, isLoading } = useQuery<Auction[]>({
     queryKey: ["/api/auctions/feed"],
     enabled: !!userData,
-    // Removed refetchInterval - using WebSocket for real-time updates
-    // Fallback to occasional polling if WebSocket disconnected
     refetchInterval: connected ? false : 10000,
   });
 
@@ -33,103 +35,78 @@ export default function HomePage() {
   useEffect(() => {
     const cleanup = onBidNew((data) => {
       console.log('[WebSocket] Feed bid update:', data);
-
-      // Update specific auction in feed cache
       queryClient.setQueryData(['/api/auctions/feed'], (old: Auction[] | undefined) => {
         if (!old) return old;
-
         return old.map(auction =>
           auction.id === String(data.auctionId)
-            ? {
-                ...auction,
-                currentPricePerM3: data.currentPricePerM3,
-                bidCount: data.bidCount,
-              }
+            ? { ...auction, currentPricePerM3: data.currentPricePerM3, bidCount: data.bidCount }
             : auction
         );
       });
     });
-
     return cleanup;
   }, [onBidNew]);
 
-  // Apply filters and sorting client-side
-  const auctions = useMemo(() => {
-    if (!allAuctions) return undefined;
+  // Unfiltered counts for tab badges
+  const liveCount = useMemo(
+    () => allAuctions?.filter(a => a.status === "active" || a.status === "upcoming").length || 0,
+    [allAuctions]
+  );
+  const completedCount = useMemo(
+    () => allAuctions?.filter(a => a.status === "ended" || a.status === "sold").length || 0,
+    [allAuctions]
+  );
 
-    let filtered = allAuctions
-      .filter(a => a.status === "active" || a.status === "upcoming");
+  // Apply filters to the active tab's auction list
+  const applyFilters = (list: Auction[], defaultSort: "endTimeAsc" | "endTimeDesc") => {
+    let filtered = [...list];
 
-    // Apply filters
-    if (filters.region) {
-      filtered = filtered.filter(a => a.region === filters.region);
-    }
-
-    if (filters.species) {
-      filtered = filtered.filter(a =>
-        a.speciesBreakdown.some(s => s.species === filters.species)
-      );
-    }
-
-    if (filters.minVolume !== undefined) {
-      filtered = filtered.filter(a => a.volumeM3 >= filters.minVolume!);
-    }
-
-    if (filters.maxVolume !== undefined) {
-      filtered = filtered.filter(a => a.volumeM3 <= filters.maxVolume!);
-    }
-
-    if (filters.minDiameter !== undefined && filters.minDiameter > 0) {
-      filtered = filtered.filter(a =>
-        a.apvAverageDiameter !== undefined && a.apvAverageDiameter >= filters.minDiameter!
-      );
-    }
-
-    if (filters.maxDiameter !== undefined && filters.maxDiameter > 0) {
-      filtered = filtered.filter(a =>
-        a.apvAverageDiameter !== undefined && a.apvAverageDiameter <= filters.maxDiameter!
-      );
-    }
-
-    if (filters.minPrice !== undefined) {
-      filtered = filtered.filter(a => a.currentPricePerM3 >= filters.minPrice!);
-    }
-
-    if (filters.maxPrice !== undefined) {
-      filtered = filtered.filter(a => a.currentPricePerM3 <= filters.maxPrice!);
-    }
-
-    if (filters.treatmentType && filters.treatmentType.trim()) {
+    if (filters.region) filtered = filtered.filter(a => a.region === filters.region);
+    if (filters.species) filtered = filtered.filter(a => a.speciesBreakdown.some(s => s.species === filters.species));
+    if (filters.minVolume !== undefined) filtered = filtered.filter(a => a.volumeM3 >= filters.minVolume!);
+    if (filters.maxVolume !== undefined) filtered = filtered.filter(a => a.volumeM3 <= filters.maxVolume!);
+    if (filters.minDiameter !== undefined && filters.minDiameter > 0) filtered = filtered.filter(a => a.apvAverageDiameter !== undefined && a.apvAverageDiameter >= filters.minDiameter!);
+    if (filters.maxDiameter !== undefined && filters.maxDiameter > 0) filtered = filtered.filter(a => a.apvAverageDiameter !== undefined && a.apvAverageDiameter <= filters.maxDiameter!);
+    if (filters.minPrice !== undefined) filtered = filtered.filter(a => a.currentPricePerM3 >= filters.minPrice!);
+    if (filters.maxPrice !== undefined) filtered = filtered.filter(a => a.currentPricePerM3 <= filters.maxPrice!);
+    if (filters.treatmentType?.trim()) {
       const searchTerm = filters.treatmentType.toLowerCase();
-      filtered = filtered.filter(a =>
-        a.apvTreatmentType?.toLowerCase().includes(searchTerm)
-      );
+      filtered = filtered.filter(a => a.apvTreatmentType?.toLowerCase().includes(searchTerm));
     }
 
-    // Apply sorting
-    const sortBy = filters.sortBy || "endTime";
-
+    const sortBy = filters.sortBy || (defaultSort === "endTimeAsc" ? "endTime" : "endTimeDesc");
     switch (sortBy) {
-      case "volumeAsc":
-        filtered.sort((a, b) => a.volumeM3 - b.volumeM3);
-        break;
-      case "volumeDesc":
-        filtered.sort((a, b) => b.volumeM3 - a.volumeM3);
-        break;
-      case "priceAsc":
-        filtered.sort((a, b) => a.currentPricePerM3 - b.currentPricePerM3);
-        break;
-      case "priceDesc":
-        filtered.sort((a, b) => b.currentPricePerM3 - a.currentPricePerM3);
-        break;
+      case "volumeAsc": filtered.sort((a, b) => a.volumeM3 - b.volumeM3); break;
+      case "volumeDesc": filtered.sort((a, b) => b.volumeM3 - a.volumeM3); break;
+      case "priceAsc": filtered.sort((a, b) => a.currentPricePerM3 - b.currentPricePerM3); break;
+      case "priceDesc": filtered.sort((a, b) => b.currentPricePerM3 - a.currentPricePerM3); break;
+      case "endTimeDesc": filtered.sort((a, b) => b.endTime - a.endTime); break;
       case "endTime":
-      default:
-        filtered.sort((a, b) => a.endTime - b.endTime);
-        break;
+      default: filtered.sort((a, b) => a.endTime - b.endTime); break;
     }
-
     return filtered;
+  };
+
+  const liveAuctions = useMemo(() => {
+    if (!allAuctions) return undefined;
+    return applyFilters(
+      allAuctions.filter(a => a.status === "active" || a.status === "upcoming"),
+      "endTimeAsc"
+    );
   }, [allAuctions, filters]);
+
+  const completedAuctions = useMemo(() => {
+    if (!allAuctions) return undefined;
+    return applyFilters(
+      allAuctions.filter(a => a.status === "ended" || a.status === "sold"),
+      "endTimeDesc"
+    );
+  }, [allAuctions, filters]);
+
+  const auctions = tab === "live" ? liveAuctions : completedAuctions;
+  const isCompleted = tab === "completed";
+  const totalCount = tab === "live" ? liveCount : completedCount;
+  const hasActiveFilters = Object.keys(filters).some(key => key !== 'sortBy' && filters[key as keyof AuctionFilters]);
 
   return (
     <div className="min-h-screen bg-background pb-20 lg:pb-0">
@@ -137,12 +114,12 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Live Auctions</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Auctions</h1>
               <p className="text-sm text-muted-foreground">
-                {auctions?.length || 0} active listings
+                {auctions?.length || 0} {isCompleted ? "completed" : "active"} listings
               </p>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <NotificationCenter />
               {userData?.role === "forest_owner" && (
@@ -156,11 +133,19 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* Tab Switcher */}
+          <Tabs value={tab} onValueChange={(v) => { setTab(v as FeedTab); setFilters({}); }} className="mb-4">
+            <TabsList>
+              <TabsTrigger value="live">Live ({liveCount})</TabsTrigger>
+              <TabsTrigger value="completed">Completed ({completedCount})</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           {/* Filter Panel */}
           <AuctionFilterPanel
             filters={filters}
             onFiltersChange={setFilters}
-            totalCount={allAuctions?.filter(a => a.status === "active" || a.status === "upcoming").length || 0}
+            totalCount={totalCount}
             filteredCount={auctions?.length || 0}
           />
         </div>
@@ -169,7 +154,6 @@ export default function HomePage() {
       <div className="max-w-7xl mx-auto">
         {isLoading ? (
           <div className="py-2">
-            {/* Skeleton header row */}
             <div className="grid grid-cols-12 gap-2 px-4 py-3 border-b border-border">
               <Skeleton className="col-span-4 h-4 w-24" />
               <Skeleton className="col-span-2 h-4 w-16" />
@@ -177,7 +161,6 @@ export default function HomePage() {
               <Skeleton className="col-span-1 h-4 w-8 mx-auto" />
               <Skeleton className="col-span-3 h-4 w-12 ml-auto" />
             </div>
-            {/* Skeleton auction rows */}
             {[1, 2, 3].map(i => (
               <motion.div
                 key={i}
@@ -213,8 +196,9 @@ export default function HomePage() {
           </div>
         ) : auctions && auctions.length > 0 ? (
           <>
-            <DualViewAuctionFeed auctions={auctions} />
-            {auctions.length <= 3 && (
+            <DualViewAuctionFeed auctions={auctions} isCompleted={isCompleted} />
+            {/* Market Snapshot — only on Live tab with few auctions */}
+            {!isCompleted && auctions.length <= 3 && (
               <motion.div
                 className="px-4 py-6 border-t border-border"
                 initial={{ opacity: 0 }}
@@ -224,10 +208,10 @@ export default function HomePage() {
                 <h2 className="text-xl font-semibold mb-4 text-muted-foreground">Market Snapshot</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
-                    { icon: <BarChart3 className="w-4 h-4" />, label: "Active", value: auctions.length, sub: "live auctions" },
-                    { icon: <TrendingUp className="w-4 h-4" />, label: "Avg Price", value: auctions.length > 0 ? `€${Math.round(auctions.reduce((s, a) => s + (a.currentPricePerM3 || 0), 0) / auctions.length).toLocaleString('de-DE')}` : '—', sub: "per m³" },
-                    { icon: <TreeDeciduous className="w-4 h-4" />, label: "Volume", value: `${auctions.reduce((s, a) => s + (a.volumeM3 || 0), 0).toLocaleString('de-DE')} m³`, sub: "total listed" },
-                    { icon: <Clock className="w-4 h-4" />, label: "Total Bids", value: auctions.reduce((s, a) => s + (a.bidCount || 0), 0), sub: "across all auctions" },
+                    { icon: <BarChart3 className="w-4 h-4" />, label: "Active", value: liveCount, sub: "live auctions" },
+                    { icon: <TrendingUp className="w-4 h-4" />, label: "Avg Price", value: liveAuctions && liveAuctions.length > 0 ? `€${Math.round(liveAuctions.reduce((s, a) => s + (a.currentPricePerM3 || 0), 0) / liveAuctions.length).toLocaleString('de-DE')}` : '—', sub: "per m³" },
+                    { icon: <TreeDeciduous className="w-4 h-4" />, label: "Volume", value: `${(liveAuctions || []).reduce((s, a) => s + (a.volumeM3 || 0), 0).toLocaleString('de-DE')} m³`, sub: "total listed" },
+                    { icon: <Clock className="w-4 h-4" />, label: "Total Bids", value: (liveAuctions || []).reduce((s, a) => s + (a.bidCount || 0), 0), sub: "across all auctions" },
                   ].map((stat, i) => (
                     <motion.div
                       key={stat.label}
@@ -266,17 +250,21 @@ export default function HomePage() {
               <TreeDeciduous className="w-8 h-8 text-muted-foreground/60" />
             </div>
             <h3 className="text-xl font-semibold mb-2">
-              {Object.keys(filters).some(key => key !== 'sortBy' && filters[key as keyof AuctionFilters])
+              {hasActiveFilters
                 ? "No matching auctions"
-                : "No live auctions right now"}
+                : isCompleted
+                  ? "No completed auctions yet"
+                  : "No live auctions right now"}
             </h3>
             <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-              {Object.keys(filters).some(key => key !== 'sortBy' && filters[key as keyof AuctionFilters])
+              {hasActiveFilters
                 ? "Try adjusting your filters to broaden your search"
-                : "New timber lots are listed regularly. Check back soon or create your own listing."}
+                : isCompleted
+                  ? "Auctions will appear here once they end."
+                  : "New timber lots are listed regularly. Check back soon or create your own listing."}
             </p>
             <div className="flex items-center justify-center gap-3">
-              {userData?.role === "forest_owner" && (
+              {!isCompleted && userData?.role === "forest_owner" && (
                 <Link href="/create">
                   <Button>List Timber</Button>
                 </Link>
