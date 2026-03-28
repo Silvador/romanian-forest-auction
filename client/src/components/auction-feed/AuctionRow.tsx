@@ -82,7 +82,7 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
             {auction.bidCount}
           </span>
         </div>
-        <div className="text-xs text-muted-foreground">bids</div>
+        <div className="text-xs text-muted-foreground">{auction.bidCount === 1 ? "bid" : "bids"}</div>
       </div>
 
       {/* Time Remaining - 3 cols */}
