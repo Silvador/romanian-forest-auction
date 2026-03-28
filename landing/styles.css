@@ -438,40 +438,147 @@ p {
   color: var(--muted-strong);
 }
 
-/* Three.js Phone Stage */
-.phone-stage-wrapper {
-  width: 100%;
-  max-width: 1000px;
-  margin: 48px auto 0;
+/* Phone Triptych */
+.phone-triptych {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin: 56px auto 0;
+  max-width: 900px;
+  height: 520px;
+  perspective: 1600px;
 }
 
-#phone-stage {
-  width: 100%;
-  height: 560px;
-  display: block;
-  border-radius: 20px;
-}
-
-.phone-stage-labels {
+.phone-glow {
   position: absolute;
-  bottom: 30px;
+  width: 50%;
+  height: 60%;
+  top: 20%;
+  left: 25%;
+  background: radial-gradient(ellipse, rgba(238,255,53,0.1) 0%, transparent 60%);
+  filter: blur(50px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.phone-frame {
+  position: absolute;
+  background: #000;
+  border-radius: 40px;
+  padding: 8px;
+  border: 2px solid rgba(255,255,255,0.1);
+  box-shadow:
+    0 40px 80px rgba(0,0,0,0.6),
+    0 0 0 1px rgba(255,255,255,0.04),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  transition: transform 0.6s cubic-bezier(0.22,1,0.36,1), box-shadow 0.6s cubic-bezier(0.22,1,0.36,1);
+  will-change: transform;
+  z-index: 1;
+}
+
+.phone-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 32px;
+  display: block;
+}
+
+.phone-notch {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 24px;
+  background: #000;
+  border-radius: 12px;
+  z-index: 3;
+}
+
+.phone-label {
+  position: absolute;
+  bottom: -32px;
   left: 0;
   right: 0;
-  display: flex;
-  justify-content: space-between;
-  padding: 0 10%;
-  pointer-events: none;
+  text-align: center;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.4s ease;
 }
 
-.stage-label {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--muted);
-  opacity: 0.7;
-  text-align: center;
+.phone-triptych:hover .phone-label {
+  opacity: 1;
+}
+
+/* Center phone — front and largest */
+.phone-frame--center {
+  width: 220px;
+  height: 460px;
+  z-index: 3;
+  transform: translateZ(60px);
+}
+
+.phone-frame--center:hover {
+  transform: translateZ(80px) translateY(-8px);
+  box-shadow:
+    0 50px 100px rgba(0,0,0,0.7),
+    0 0 60px rgba(238,255,53,0.08),
+    0 0 0 1px rgba(238,255,53,0.1);
+}
+
+/* Left phone — smaller, rotated, behind */
+.phone-frame--left {
+  width: 190px;
+  height: 400px;
+  z-index: 2;
+  transform: translateX(-240px) translateZ(-40px) rotateY(18deg);
+}
+
+.phone-frame--left:hover {
+  transform: translateX(-240px) translateZ(-20px) rotateY(12deg) translateY(-8px);
+  box-shadow:
+    0 50px 100px rgba(0,0,0,0.7),
+    0 0 40px rgba(238,255,53,0.06);
+}
+
+/* Right phone — smaller, rotated, behind */
+.phone-frame--right {
+  width: 190px;
+  height: 400px;
+  z-index: 2;
+  transform: translateX(240px) translateZ(-40px) rotateY(-18deg);
+}
+
+.phone-frame--right:hover {
+  transform: translateX(240px) translateZ(-20px) rotateY(-12deg) translateY(-8px);
+  box-shadow:
+    0 50px 100px rgba(0,0,0,0.7),
+    0 0 40px rgba(238,255,53,0.06);
+}
+
+/* Reflection under center phone */
+.phone-frame--center::after {
+  content: '';
+  position: absolute;
+  bottom: -100%;
+  left: 5%;
+  width: 90%;
+  height: 90%;
+  background: inherit;
+  border-radius: 32px;
+  transform: scaleY(-1);
+  opacity: 0.08;
+  filter: blur(6px);
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.3), transparent 50%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.3), transparent 50%);
+  pointer-events: none;
 }
 
 /* Hero ticker strip (replaces stat cards) */
@@ -996,11 +1103,28 @@ p {
     grid-template-columns: 1fr;
   }
 
-  #phone-stage {
+  .phone-triptych {
+    height: 380px;
+  }
+
+  .phone-frame--center {
+    width: 170px;
     height: 360px;
   }
 
-  .phone-stage-labels {
+  .phone-frame--left {
+    width: 140px;
+    height: 300px;
+    transform: translateX(-160px) translateZ(-40px) rotateY(18deg);
+  }
+
+  .phone-frame--right {
+    width: 140px;
+    height: 300px;
+    transform: translateX(160px) translateZ(-40px) rotateY(-18deg);
+  }
+
+  .phone-label {
     display: none;
   }
 

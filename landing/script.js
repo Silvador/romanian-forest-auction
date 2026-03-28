@@ -19,42 +19,47 @@ const revealObserver = new IntersectionObserver(
 
 revealItems.forEach((item) => revealObserver.observe(item));
 
-// Cursor-tracking 3D tilt for mockup frames
+// Cursor-tracking on phone triptych + showcase mockup
 if (window.matchMedia('(pointer: fine)').matches) {
   const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
-  const tiltEls = document.querySelectorAll('#hero-mockup, #showcase-mockup');
 
-  tiltEls.forEach((el) => {
-    let rafId = null;
-    let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
-
+  // Triptych subtle scene rotation
+  const triptych = document.getElementById('phone-triptych');
+  if (triptych) {
+    let tX = 0, tY = 0, cX = 0, cY = 0;
     document.addEventListener('mousemove', (e) => {
-      const rect = el.getBoundingClientRect();
-      // Only tilt when element is in viewport
+      const rect = triptych.getBoundingClientRect();
       if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+      tX = ((e.clientX / window.innerWidth) - 0.5) * 8;
+      tY = ((e.clientY / window.innerHeight) - 0.5) * -4;
+    });
+    (function animTriptych() {
+      cX += (tX - cX) * 0.04;
+      cY += (tY - cY) * 0.04;
+      triptych.style.transform = `rotateY(${cX}deg) rotateX(${cY}deg)`;
+      requestAnimationFrame(animTriptych);
+    })();
+  }
 
+  // Showcase mockup tilt
+  const showcase = document.getElementById('showcase-mockup');
+  if (showcase) {
+    let sX = 0, sY = 0, scX = 0, scY = 0;
+    document.addEventListener('mousemove', (e) => {
+      const rect = showcase.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) return;
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
-      const dx = (e.clientX - cx) / (window.innerWidth / 2);
-      const dy = (e.clientY - cy) / (window.innerHeight / 2);
-
-      targetX = clamp(dx * 5, -5, 5);
-      targetY = clamp(-dy * 3, -3, 3);
-
-      if (!rafId) {
-        rafId = requestAnimationFrame(function animate() {
-          currentX += (targetX - currentX) * 0.06;
-          currentY += (targetY - currentY) * 0.06;
-          el.style.transform = `perspective(1200px) rotateY(${currentX}deg) rotateX(${currentY + 1.5}deg)`;
-          if (Math.abs(targetX - currentX) > 0.01 || Math.abs(targetY - currentY) > 0.01) {
-            rafId = requestAnimationFrame(animate);
-          } else {
-            rafId = null;
-          }
-        });
-      }
+      sX = clamp((e.clientX - cx) / (window.innerWidth / 2) * 5, -5, 5);
+      sY = clamp(-(e.clientY - cy) / (window.innerHeight / 2) * 3, -3, 3);
     });
-  });
+    (function animShowcase() {
+      scX += (sX - scX) * 0.06;
+      scY += (sY - scY) * 0.06;
+      showcase.style.transform = `perspective(1200px) rotateY(${scX - 4}deg) rotateX(${scY + 2}deg)`;
+      requestAnimationFrame(animShowcase);
+    })();
+  }
 }
 
 // Header scroll effect

@@ -70,14 +70,24 @@
           </a>
         </div>
 
-        <!-- Three.js Phone Stage -->
-        <div class="phone-stage-wrapper reveal">
-          <canvas id="phone-stage"></canvas>
-          <div class="phone-stage-labels">
-            <span class="stage-label stage-label--left">Market Data</span>
-            <span class="stage-label stage-label--center">Live Auctions</span>
-            <span class="stage-label stage-label--right">Auction Detail</span>
+        <!-- Phone Triptych -->
+        <div class="phone-triptych reveal" id="phone-triptych">
+          <div class="phone-frame phone-frame--left">
+            <div class="phone-notch"></div>
+            <img src="assets/phone-market.png" alt="Market dashboard">
+            <span class="phone-label">Market Data</span>
           </div>
+          <div class="phone-frame phone-frame--center">
+            <div class="phone-notch"></div>
+            <img src="assets/phone-feed.png" alt="Live auction feed">
+            <span class="phone-label">Live Auctions</span>
+          </div>
+          <div class="phone-frame phone-frame--right">
+            <div class="phone-notch"></div>
+            <img src="assets/phone-detail.png" alt="Auction detail with bidding">
+            <span class="phone-label">Bid & Trade</span>
+          </div>
+          <div class="phone-glow"></div>
         </div>
 
         <!-- Stats ticker strip -->
@@ -282,8 +292,6 @@
     </div>
   </footer>
 
-  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
   <script src="script.js"></script>
-  <script type="module" src="phone-stage.js"></script>
 </body>
 </html>
