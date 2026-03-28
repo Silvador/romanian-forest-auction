@@ -19,41 +19,41 @@ const revealObserver = new IntersectionObserver(
 
 revealItems.forEach((item) => revealObserver.observe(item));
 
-// Hero mockup — cursor-tracking 3D tilt
-const mockup = document.getElementById('hero-mockup');
-if (mockup && window.matchMedia('(pointer: fine)').matches) {
-  const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-  let rafId = null;
-  let targetX = 0, targetY = 0;
-  let currentX = 0, currentY = 0;
+// Cursor-tracking 3D tilt for mockup frames
+if (window.matchMedia('(pointer: fine)').matches) {
+  const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+  const tiltEls = document.querySelectorAll('#hero-mockup, #showcase-mockup');
 
-  document.addEventListener('mousemove', (event) => {
-    const rect = mockup.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
+  tiltEls.forEach((el) => {
+    let rafId = null;
+    let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
 
-    // Distance from center of mockup, normalized
-    const dx = (event.clientX - cx) / (window.innerWidth / 2);
-    const dy = (event.clientY - cy) / (window.innerHeight / 2);
+    document.addEventListener('mousemove', (e) => {
+      const rect = el.getBoundingClientRect();
+      // Only tilt when element is in viewport
+      if (rect.bottom < 0 || rect.top > window.innerHeight) return;
 
-    targetX = clamp(dx * 6, -6, 6);
-    targetY = clamp(-dy * 4, -4, 4);
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = (e.clientX - cx) / (window.innerWidth / 2);
+      const dy = (e.clientY - cy) / (window.innerHeight / 2);
 
-    if (!rafId) {
-      rafId = requestAnimationFrame(function animate() {
-        // Smooth lerp
-        currentX += (targetX - currentX) * 0.08;
-        currentY += (targetY - currentY) * 0.08;
+      targetX = clamp(dx * 5, -5, 5);
+      targetY = clamp(-dy * 3, -3, 3);
 
-        mockup.style.transform = `perspective(1200px) rotateY(${currentX}deg) rotateX(${currentY + 2}deg)`;
-
-        if (Math.abs(targetX - currentX) > 0.01 || Math.abs(targetY - currentY) > 0.01) {
-          rafId = requestAnimationFrame(animate);
-        } else {
-          rafId = null;
-        }
-      });
-    }
+      if (!rafId) {
+        rafId = requestAnimationFrame(function animate() {
+          currentX += (targetX - currentX) * 0.06;
+          currentY += (targetY - currentY) * 0.06;
+          el.style.transform = `perspective(1200px) rotateY(${currentX}deg) rotateX(${currentY + 1.5}deg)`;
+          if (Math.abs(targetX - currentX) > 0.01 || Math.abs(targetY - currentY) > 0.01) {
+            rafId = requestAnimationFrame(animate);
+          } else {
+            rafId = null;
+          }
+        });
+      }
+    });
   });
 }
 
@@ -62,13 +62,11 @@ const header = document.querySelector('.site-header');
 window.addEventListener('scroll', () => {
   if (!header) return;
   header.style.background = window.scrollY > 30
-    ? 'linear-gradient(180deg, rgba(8, 8, 8, 0.88), rgba(8, 8, 8, 0.6))'
+    ? 'linear-gradient(180deg, rgba(8, 8, 8, 0.92), rgba(8, 8, 8, 0.7))'
     : 'linear-gradient(180deg, rgba(8, 8, 8, 0.72), rgba(8, 8, 8, 0.38))';
 });
 
-// Reduced motion respect
+// Reduced motion
 if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  document.querySelectorAll('*').forEach((node) => {
-    node.style.scrollBehavior = 'auto';
-  });
+  document.querySelectorAll('.floating-badge').forEach(b => b.style.animation = 'none');
 }
