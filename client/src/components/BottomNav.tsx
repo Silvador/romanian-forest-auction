@@ -21,9 +21,9 @@ export function BottomNav() {
   return (
     <>
       {/* Desktop sidebar — hidden below lg */}
-      <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 w-16 bg-card border-r border-border z-50 flex-col items-center py-6 gap-2">
+      <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 w-16 border-r border-border z-50 flex-col items-center py-6 gap-2" style={{background: 'linear-gradient(180deg, rgba(28,28,28,0.88), rgba(18,18,18,0.92))'}}>
         {/* Logo */}
-        <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center mb-6">
+        <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center mb-6">
           <span className="text-primary-foreground text-sm font-bold">🌲</span>
         </div>
 
@@ -37,7 +37,7 @@ export function BottomNav() {
               <Link key={item.path} href={item.path}>
                 <button
                   className={cn(
-                    "flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-xl transition-colors",
+                    "flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-sm transition-colors",
                     isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   )}
                   data-testid={item.testId}
