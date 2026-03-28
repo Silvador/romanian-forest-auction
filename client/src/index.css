@@ -68,6 +68,13 @@
 
   --destructive-foreground: 0 84% 98%;
 
+  --positive: 142 76% 36%;
+  --positive-foreground: 142 76% 98%;
+  --negative: 0 84% 60%;
+  --negative-foreground: 0 84% 98%;
+  --caution: 38 92% 50%;
+  --caution-foreground: 38 92% 10%;
+
   --input: 0 0% 75%;
   --ring: 142 76% 36%;
   --chart-1: 142 76% 30%;
@@ -185,6 +192,13 @@
   --destructive: 0 84% 60%;
 
   --destructive-foreground: 0 0% 100%;
+
+  --positive: 142 76% 40%;
+  --positive-foreground: 0 0% 0%;
+  --negative: 0 84% 55%;
+  --negative-foreground: 0 0% 100%;
+  --caution: 38 92% 50%;
+  --caution-foreground: 0 0% 0%;
 
   --input: 0 0% 18%;
   --ring: 75 100% 50%;
