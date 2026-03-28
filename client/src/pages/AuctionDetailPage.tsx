@@ -383,7 +383,7 @@ export default function AuctionDetailPage() {
             <div className="space-y-6">
               {/* Table 1 - Basic Info */}
               <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Basic Information</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider uppercase">Basic Information</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
                   {auction.apvPermitNumber && (
                     <div className="flex justify-between items-center">
@@ -462,7 +462,7 @@ export default function AuctionDetailPage() {
 
               {/* Table 2 - Tree/Forest Metrics */}
               <div className="pt-4 border-t">
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Tree & Forest Metrics</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider uppercase">Tree & Forest Metrics</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Primary Species</span>
@@ -522,7 +522,7 @@ export default function AuctionDetailPage() {
               {/* Table 3 - Volume Breakdown */}
               {(auction.apvSortVolumes && Object.keys(auction.apvSortVolumes).length > 0) || auction.apvFirewoodVolume || auction.apvBarkVolume ? (
                 <div className="pt-4 border-t">
-                  <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Volume Breakdown</h4>
+                  <h4 className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider uppercase">Volume Breakdown</h4>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {auction.apvSortVolumes?.G1 && (
                       <div className="bg-muted/30 p-3 rounded-md">
@@ -572,7 +572,7 @@ export default function AuctionDetailPage() {
 
               {/* Species Breakdown */}
               <div className="pt-4 border-t">
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Species Composition</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider uppercase">Species Composition</h4>
                 <div className="space-y-2">
                   {auction.speciesBreakdown.map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between">
