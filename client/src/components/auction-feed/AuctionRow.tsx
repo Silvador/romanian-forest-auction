@@ -30,7 +30,7 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0, transition: { delay, duration: 0.3, ease: "easeOut" } }}
       whileHover={{
-        backgroundColor: "hsl(var(--accent))",
+        backgroundColor: "hsla(var(--accent), 0.08)",
         transition: { duration: 0.15 }
       }}
       onClick={onClick}
