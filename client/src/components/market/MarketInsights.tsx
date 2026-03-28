@@ -50,7 +50,9 @@ export function MarketInsights({ analytics, hasActiveFilters }: MarketInsightsPr
 
       const recentAvg = recentPrices.reduce((sum, p) => sum + p, 0) / recentPrices.length;
       const olderAvg = olderPrices.reduce((sum, p) => sum + p, 0) / olderPrices.length;
+      if (olderAvg === 0 || recentAvg === 0) return; // skip this species
       const changePercent = ((recentAvg - olderAvg) / olderAvg) * 100;
+      if (!isFinite(changePercent)) return;
 
       if (Math.abs(changePercent) > 10) {
         if (changePercent > 0) {
@@ -90,9 +92,11 @@ export function MarketInsights({ analytics, hasActiveFilters }: MarketInsightsPr
       const sortedRegions = [...analytics.avgPriceByRegion].sort((a, b) => b.avgPricePerM3 - a.avgPricePerM3);
       const highestRegion = sortedRegions[0];
       const lowestRegion = sortedRegions[sortedRegions.length - 1];
-      const priceDiff = ((highestRegion.avgPricePerM3 - lowestRegion.avgPricePerM3) / lowestRegion.avgPricePerM3) * 100;
+      const priceDiff = lowestRegion.avgPricePerM3 > 0
+        ? ((highestRegion.avgPricePerM3 - lowestRegion.avgPricePerM3) / lowestRegion.avgPricePerM3) * 100
+        : 0;
 
-      if (priceDiff > 20) {
+      if (priceDiff > 20 && isFinite(priceDiff)) {
         insights.push({
           type: "info",
           title: "Significant regional price differences",
