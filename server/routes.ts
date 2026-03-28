@@ -1184,13 +1184,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const mostPopularSpecies = Object.entries(speciesCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
 
-      // Price trends by species (last 30 days)
-      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-      const recentAuctions = completedAuctions.filter(a => a.createdAt >= thirtyDaysAgo);
-
+      // Price trends by species (all completed auctions, grouped by end date)
       const priceTrendsBySpecies: Record<string, { date: string; pricePerM3: number; count: number }[]> = {};
-      recentAuctions.forEach(a => {
-        const dateStr = new Date(a.createdAt).toISOString().split('T')[0];
+      completedAuctions.forEach(a => {
+        const dateStr = new Date(a.endTime || a.createdAt).toISOString().split('T')[0];
         const pricePerM3 = getAuctionPrice(a);
 
         if (a.speciesBreakdown) {
