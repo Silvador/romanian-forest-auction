@@ -38,12 +38,17 @@ export const AuctionRow = forwardRef<HTMLDivElement, AuctionRowProps>(function A
     >
       {/* Species & Title - 4 cols */}
       <div className="col-span-4 flex items-center gap-3 min-w-0">
-        <Badge 
-          variant={isLive ? "default" : "secondary"} 
-          className="shrink-0 font-bold pointer-events-none"
-        >
-          {species}
-        </Badge>
+        <div className="relative shrink-0">
+          {isLive && (
+            <span className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-emerald-500 status-pulse" />
+          )}
+          <Badge
+            variant={isLive ? "default" : "secondary"}
+            className="font-bold pointer-events-none"
+          >
+            {species}
+          </Badge>
+        </div>
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold truncate" data-testid={`text-title-${auction.id}`}>
             {auction.title}
