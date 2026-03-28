@@ -44,44 +44,58 @@
 
   <main>
     <section class="hero section" id="hero-section">
-      <div class="container hero-grid">
-        <div class="hero-copy reveal">
-          <p class="eyebrow">Romania's first open forest marketplace</p>
-          <h1>Romania's First Zero-Commission, Open Forest Marketplace</h1>
-          <p class="hero-text">
-            Buy, sell, and trade timber with full transparency. No brokers, no hidden fees.
-            Just forest owners and buyers connected directly through live auctions and real-time pricing.
-          </p>
+      <div class="container hero-centered">
+        <!-- Pill link -->
+        <a class="hero-pill reveal" href="#what-we-do">
+          Check this out <span class="hero-pill__arrow">&#8250;</span>
+        </a>
 
-          <div class="hero-actions">
-            <a class="rf-button rf-button-large" href="/signup">
-              <span class="rf-button__icon" aria-hidden="true"><span class="icon-grid"></span></span>
-              <span class="rf-button__label">Get Started Free</span>
-            </a>
-            <a class="ghost-link" href="#what-we-do">See how it works &#8594;</a>
-          </div>
+        <!-- Centered headline -->
+        <h1 class="hero-title reveal">
+          Romania's First Zero-Commission,<br>
+          <span class="hero-accent">Open Forest Marketplace</span>
+        </h1>
 
-          <div class="hero-stats">
-            <article class="stat-card glass-card reveal">
-              <span class="stat-value">28%</span>
-              <span class="stat-label">of Romania is forested</span>
-            </article>
-            <article class="stat-card glass-card reveal">
-              <span class="stat-value">0%</span>
-              <span class="stat-label">commission on every sale</span>
-            </article>
-            <article class="stat-card glass-card reveal">
-              <span class="stat-value">24/7</span>
-              <span class="stat-label">live auctions and market data</span>
-            </article>
+        <!-- Centered body -->
+        <p class="hero-text reveal">
+          Buy, sell, and manage forests with full transparency. No brokers. No hidden fees.
+          Just owners and forestry companies connecting directly.
+        </p>
+
+        <!-- Single CTA -->
+        <div class="hero-actions reveal">
+          <a class="rf-button rf-button-large" href="/signup">
+            <span class="rf-button__icon" aria-hidden="true"><span class="icon-grid"></span></span>
+            <span class="rf-button__label">Get Started Free</span>
+          </a>
+        </div>
+
+        <!-- App mockup with browser chrome + cursor tilt -->
+        <div class="hero-mockup-wrapper reveal">
+          <div class="hero-mockup" id="hero-mockup">
+            <div class="mockup-chrome">
+              <span class="chrome-dot" style="background:#ff5f57"></span>
+              <span class="chrome-dot" style="background:#febc2e"></span>
+              <span class="chrome-dot" style="background:#28c840"></span>
+            </div>
+            <img src="assets/uYK8NFK906UHU0VyB2JOw6kbc.webp" alt="Romanian Forest marketplace — live auction with bidding, market charts, and forest lot details">
           </div>
         </div>
 
-        <div class="hero-visual reveal reveal-right">
-          <div class="hero-orb"></div>
-          <div class="hero-backdrop glass-card">
-            <img src="assets/uYK8NFK906UHU0VyB2JOw6kbc.webp" alt="Romanian Forest marketplace — live auction with bidding, market charts, and forest lot details">
-          </div>
+        <!-- Stats below mockup -->
+        <div class="hero-stats reveal">
+          <article class="stat-card glass-card">
+            <span class="stat-value">28%</span>
+            <span class="stat-label">of Romania is forested</span>
+          </article>
+          <article class="stat-card glass-card">
+            <span class="stat-value">0%</span>
+            <span class="stat-label">commission on every sale</span>
+          </article>
+          <article class="stat-card glass-card">
+            <span class="stat-value">24/7</span>
+            <span class="stat-label">live auctions and market data</span>
+          </article>
         </div>
       </div>
     </section>
