@@ -466,7 +466,7 @@
 
   /* Card hover elevation - financial tile style with enhanced shadow */
   .hover-elevate-card {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .hover-elevate-card:hover {

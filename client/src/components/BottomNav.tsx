@@ -29,8 +29,8 @@ export function BottomNav() {
             <Link key={item.path} href={item.path}>
               <button
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 py-2 px-3 min-w-[60px] transition-colors",
-                  isActive ? "text-primary" : "text-muted-foreground"
+                  "flex flex-col items-center justify-center gap-1 py-2 px-3 min-w-[60px] rounded-lg transition-colors",
+                  isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 )}
                 data-testid={item.testId}
               >
