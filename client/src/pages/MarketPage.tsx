@@ -41,7 +41,8 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  Cell
 } from "recharts";
 
 interface DiameterClassStats {
@@ -394,7 +395,7 @@ export default function MarketPage() {
                       borderRadius: "0.5rem"
                     }}
                   />
-                  <Bar dataKey="volume" fill="#8BC34A" />
+                  <Bar dataKey="volume" fill="hsl(var(--chart-1))" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -434,7 +435,12 @@ export default function MarketPage() {
                       borderRadius: "0.5rem"
                     }}
                   />
-                  <Bar dataKey="avgPricePerM3" fill="#8BC34A" />
+                  <Bar dataKey="avgPricePerM3">
+                    {chartData.avgPriceByRegion.map((_: any, index: number) => {
+                      const colors = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+                      return <Cell key={index} fill={colors[index % colors.length]} />;
+                    })}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
