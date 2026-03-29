@@ -79,3 +79,124 @@ if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     el.style.transition = 'none';
   });
 }
+
+// ===== Bento Effect System =====
+// Modular: each effect is a standalone function, toggled via config.
+(function initBento() {
+  var grid = document.querySelector('[data-bento]');
+  if (!grid) return;
+
+  var cards = Array.prototype.slice.call(grid.querySelectorAll('[data-bento-card]'));
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var touch = window.matchMedia('(pointer: coarse)').matches;
+
+  // Config — toggle any effect on/off
+  var fx = {
+    spotlight: true,
+    borderGlow: true,
+    tilt: !touch && !reduced,
+    magnetism: !touch && !reduced,
+    ripple: !reduced,
+    particles: !reduced
+  };
+
+  // Smooth interpolation state per card
+  var state = cards.map(function() {
+    return { mx: 0, my: 0, tx: 0, ty: 0, rx: 0, ry: 0, active: false };
+  });
+
+  // --- Particles ---
+  if (fx.particles) {
+    cards.forEach(function(card) {
+      var wrap = document.createElement('div');
+      wrap.className = 'bento__particles';
+      wrap.setAttribute('aria-hidden', 'true');
+      for (var i = 0; i < 8; i++) {
+        var d = document.createElement('span');
+        d.className = 'bento__dot';
+        var s = 1.5 + Math.random() * 2;
+        d.style.width = s + 'px';
+        d.style.height = s + 'px';
+        d.style.top = (15 + Math.random() * 70) + '%';
+        d.style.left = (15 + Math.random() * 70) + '%';
+        d.style.setProperty('--dur', (2.5 + Math.random() * 2) + 's');
+        d.style.setProperty('--del', (Math.random() * 1) + 's');
+        d.style.setProperty('--dx', (-30 + Math.random() * 60) + 'px');
+        d.style.setProperty('--dy', (-30 + Math.random() * 60) + 'px');
+        wrap.appendChild(d);
+      }
+      card.appendChild(wrap);
+    });
+  }
+
+  // --- Pointer tracking (spotlight, border glow, tilt, magnetism) ---
+  if (touch) return;
+
+  var lerp = function(a, b, t) { return a + (b - a) * t; };
+  var raf;
+
+  function tick() {
+    cards.forEach(function(card, i) {
+      var s = state[i];
+
+      // Smooth interpolation
+      s.mx = lerp(s.mx, s.tx, 0.12);
+      s.my = lerp(s.my, s.ty, 0.12);
+      s.rx = lerp(s.rx, s.active ? (s.ty / card.offsetHeight - 0.5) * -6 : 0, 0.08);
+      s.ry = lerp(s.ry, s.active ? (s.tx / card.offsetWidth - 0.5) * 6 : 0, 0.08);
+
+      // Spotlight + border glow position
+      card.style.setProperty('--mx', s.mx + 'px');
+      card.style.setProperty('--my', s.my + 'px');
+
+      // Tilt
+      if (fx.tilt) {
+        var magX = fx.magnetism ? (s.tx / card.offsetWidth - 0.5) * 3 : 0;
+        var magY = fx.magnetism ? (s.ty / card.offsetHeight - 0.5) * 2 : 0;
+        card.style.transform = s.active
+          ? 'perspective(800px) rotateX(' + s.rx.toFixed(2) + 'deg) rotateY(' + s.ry.toFixed(2) + 'deg) translate(' + magX.toFixed(1) + 'px,' + magY.toFixed(1) + 'px)'
+          : '';
+      }
+    });
+    raf = requestAnimationFrame(tick);
+  }
+
+  raf = requestAnimationFrame(tick);
+
+  cards.forEach(function(card, i) {
+    card.addEventListener('pointerenter', function() {
+      state[i].active = true;
+      card.setAttribute('data-active', '');
+    });
+
+    card.addEventListener('pointermove', function(e) {
+      var rect = card.getBoundingClientRect();
+      state[i].tx = e.clientX - rect.left;
+      state[i].ty = e.clientY - rect.top;
+    });
+
+    card.addEventListener('pointerleave', function() {
+      state[i].active = false;
+      state[i].tx = card.offsetWidth / 2;
+      state[i].ty = card.offsetHeight / 2;
+      card.removeAttribute('data-active');
+      card.style.transform = '';
+    });
+
+    // Ripple
+    if (fx.ripple) {
+      card.addEventListener('click', function(e) {
+        var rect = card.getBoundingClientRect();
+        var rip = document.createElement('span');
+        rip.className = 'bento__ripple';
+        var sz = Math.max(rect.width, rect.height) * 2;
+        rip.style.width = sz + 'px';
+        rip.style.height = sz + 'px';
+        rip.style.left = (e.clientX - rect.left - sz / 2) + 'px';
+        rip.style.top = (e.clientY - rect.top - sz / 2) + 'px';
+        card.appendChild(rip);
+        rip.addEventListener('animationend', function() { rip.remove(); });
+      });
+    }
+  });
+})();
