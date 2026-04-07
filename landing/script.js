@@ -1,3 +1,17 @@
+// Lenis smooth scroll
+if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && typeof Lenis !== 'undefined') {
+  const lenis = new Lenis({
+    duration: 1.2,
+    easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+    smoothWheel: true,
+  });
+  function raf(time) {
+    lenis.raf(time);
+    requestAnimationFrame(raf);
+  }
+  requestAnimationFrame(raf);
+}
+
 // Scroll reveal
 const revealItems = document.querySelectorAll('.reveal');
 
@@ -18,6 +32,25 @@ const revealObserver = new IntersectionObserver(
 );
 
 revealItems.forEach((item) => revealObserver.observe(item));
+
+// Staggered reveal for data-strip cards
+const dataStripCards = document.querySelectorAll('.data-strip__card');
+const dataStripObserver = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        dataStripCards.forEach((card, i) => {
+          setTimeout(() => card.classList.add('is-visible'), i * 100);
+        });
+        dataStripObserver.disconnect();
+      }
+    });
+  },
+  { threshold: 0.2 }
+);
+if (dataStripCards.length) {
+  dataStripObserver.observe(dataStripCards[0].parentElement);
+}
 
 // Cursor-tracking on phone triptych + showcase mockup
 if (window.matchMedia('(pointer: fine)').matches) {
@@ -52,8 +85,8 @@ const header = document.querySelector('.site-header');
 window.addEventListener('scroll', () => {
   if (!header) return;
   header.style.background = window.scrollY > 30
-    ? 'linear-gradient(180deg, rgba(8, 8, 8, 0.92), rgba(8, 8, 8, 0.7))'
-    : 'linear-gradient(180deg, rgba(8, 8, 8, 0.72), rgba(8, 8, 8, 0.38))';
+    ? 'linear-gradient(180deg, rgba(26, 29, 26, 0.92), rgba(26, 29, 26, 0.7))'
+    : 'linear-gradient(180deg, rgba(26, 29, 26, 0.72), rgba(26, 29, 26, 0.38))';
 });
 
 // Showcase scroll-triggered reveals
