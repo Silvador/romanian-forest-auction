@@ -90,6 +90,7 @@ export default function RootLayout() {
         client={queryClient}
         persistOptions={{
           persister,
+          buster: 'v2', // bump to clear stale cache when query shapes change
           maxAge: 24 * 60 * 60 * 1000, // 24h
           // Only persist auctions, market, and notifications — not bids/auth-sensitive data
           dehydrateOptions: {

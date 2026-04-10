@@ -8,7 +8,7 @@ export function useNotifications() {
     queryKey: ['notifications'],
     queryFn: ({ pageParam }) => getNotifications(pageParam as string | undefined),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
   });
@@ -18,7 +18,7 @@ export function useNotifications() {
 export function useNotificationsList(): Notification[] {
   const { data } = useNotifications();
   return useMemo(
-    () => data?.pages.flatMap((p) => p.notifications) ?? [],
+    () => data?.pages.flatMap((p) => p?.notifications ?? []) ?? [],
     [data]
   );
 }
