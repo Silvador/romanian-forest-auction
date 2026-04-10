@@ -1,0 +1,1104 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+  Linking,
+  Animated,
+  Share,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { Colors, StatusColors, SpeciesColors } from '../../constants/colors';
+import { SegmentedBurnRing } from '../../components/SegmentedBurnRing';
+import { StatusBadge } from '../../components/StatusBadge';
+import { LiveDot } from '../../components/LiveDot';
+import { BufferGauge } from '../../components/BufferGauge';
+import { BidRow } from '../../components/BidRow';
+import { BidModal } from '../../components/BidModal';
+import { useAuction, useAuctionUpdater } from '../../hooks/useAuction';
+import { useBids } from '../../hooks/useBids';
+import { useWatchlistIds, useToggleWatchlist } from '../../hooks/useWatchlist';
+import { useWebSocketRoom, useWebSocketEvent } from '../../hooks/useWebSocket';
+import { useAuthContext } from '../../lib/AuthContext';
+import { getSpeciesIncrement } from '../../lib/incrementLadder';
+import { formatVolume, formatPrice, formatRon, formatPercent, formatCountdown } from '../../lib/formatters';
+import type { Auction } from '../../types';
+
+type DetailTab = 'detalii' | 'oferte' | 'padure' | 'documente';
+
+function getSpeciesColor(species: string): string {
+  if (SpeciesColors[species]) return SpeciesColors[species];
+  const firstWord = species.split(' ')[0];
+  const match = Object.keys(SpeciesColors).find((k) => k.startsWith(firstWord));
+  return match ? SpeciesColors[match] : '#9CA3AF';
+}
+
+export default function AuctionDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { user, isBuyer } = useAuthContext();
+  const [tab, setTab] = useState<DetailTab>('detalii');
+  const [bidModalVisible, setBidModalVisible] = useState(false);
+  const [prefillBid, setPrefillBid] = useState<number | undefined>();
+  const [showApvDetails, setShowApvDetails] = useState(false);
+
+  const { data: auction, isLoading } = useAuction(id);
+  const { data: bids } = useBids(id);
+  const watchlistIds = useWatchlistIds();
+  const toggleWatchlist = useToggleWatchlist();
+  const { updateInCache, invalidate } = useAuctionUpdater(id);
+
+  // Price flash animation
+  const priceFlash = useRef(new Animated.Value(1)).current;
+  const flashPrice = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(priceFlash, { toValue: 1.08, duration: 150, useNativeDriver: true }),
+      Animated.timing(priceFlash, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+  }, [priceFlash]);
+
+  // WebSocket subscription
+  useWebSocketRoom(id ? `watch:auction:${id}` : null);
+
+  useWebSocketEvent<{ currentPricePerM3: number; bidCount: number; currentBidderId?: string }>(
+    'auction:update',
+    useCallback((data) => {
+      updateInCache(data);
+      flashPrice();
+    }, [updateInCache, flashPrice])
+  );
+
+  useWebSocketEvent<{ auctionId: string }>(
+    'bid:outbid',
+    useCallback(() => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      invalidate();
+    }, [invalidate])
+  );
+
+  useWebSocketEvent<{ endTime: number }>(
+    'auction:soft-close',
+    useCallback((data) => {
+      updateInCache({ endTime: data.endTime, softCloseActive: true });
+    }, [updateInCache])
+  );
+
+  useWebSocketEvent<{}>(
+    'auction:ended',
+    useCallback(() => {
+      invalidate();
+    }, [invalidate])
+  );
+
+  if (isLoading || !auction) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={Colors.primary} size="large" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const isWatchlisted = watchlistIds.has(auction.id);
+  const isLeading = user?.id && auction.currentBidderId === user.id;
+  const userHasBid = user?.id && bids?.some((b) => b.bidderId === user.id);
+  const isOutbid = userHasBid && !isLeading;
+  const isActive = auction.status === 'active';
+  const userMaxProxy = bids
+    ?.filter((b) => b.bidderId === user?.id)
+    .reduce((max, b) => Math.max(max, b.maxProxyPerM3), 0) ?? 0;
+
+  const increment = getSpeciesIncrement(auction.dominantSpecies);
+
+  const handleQuickBid = (multiplier: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPrefillBid(auction.currentPricePerM3 + increment * multiplier);
+    setBidModalVisible(true);
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        title: auction.title,
+        message: `${auction.title} — ${auction.currentPricePerM3} RON/m³ pe Romanian Forest`,
+      });
+    } catch {}
+  };
+
+  const openMaps = () => {
+    if (!auction.gpsCoordinates) return;
+    const { lat, lng } = auction.gpsCoordinates;
+    Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`);
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header — back arrow + inline title + actions + status pill */}
+      <View style={styles.header}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} hitSlop={8} style={styles.iconButton}>
+          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+        </Pressable>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {auction.title}
+        </Text>
+        <Pressable
+          onPress={() => toggleWatchlist(auction.id)}
+          hitSlop={8}
+          style={styles.iconButtonSmall}
+        >
+          <Ionicons
+            name={isWatchlisted ? 'bookmark' : 'bookmark-outline'}
+            size={20}
+            color={isWatchlisted ? Colors.primary : Colors.text}
+          />
+        </Pressable>
+        <Pressable onPress={handleShare} hitSlop={8} style={styles.iconButtonSmall}>
+          <Ionicons name="share-outline" size={20} color={Colors.text} />
+        </Pressable>
+        <View style={styles.headerStatusBadge}>
+          <StatusBadge status={auction.status} variant="outline" />
+        </View>
+      </View>
+
+      {/* Tab bar */}
+      <View style={styles.tabs}>
+        {(['detalii', 'oferte', 'padure', 'documente'] as DetailTab[]).map((t) => (
+          <Pressable
+            key={t}
+            style={[styles.tabButton, tab === t && styles.tabButtonActive]}
+            onPress={() => setTab(t)}
+          >
+            <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
+              {t === 'detalii' ? 'Detalii' : t === 'oferte' ? 'Oferte' : t === 'padure' ? 'Padure' : 'Documente'}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+        {tab === 'detalii' && (
+          <DetailsTab
+            auction={auction}
+            isLeading={!!isLeading}
+            isOutbid={!!isOutbid}
+            userMaxProxy={userMaxProxy}
+            canBid={isBuyer}
+            priceFlash={priceFlash}
+            onQuickBid={handleQuickBid}
+            onOpenMaps={openMaps}
+            showApvDetails={showApvDetails}
+            setShowApvDetails={setShowApvDetails}
+          />
+        )}
+
+        {tab === 'oferte' && (
+          <BidsTab bids={bids ?? []} currentUserId={user?.id} />
+        )}
+
+        {tab === 'padure' && <ForestTab auction={auction} />}
+
+        {tab === 'documente' && <DocumentsTab auction={auction} />}
+      </ScrollView>
+
+      {/* Sticky bid CTA — only buyers can bid */}
+      {isActive && isBuyer && tab === 'detalii' && (
+        <View style={styles.stickyBar}>
+          <Pressable
+            style={styles.stickyButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setPrefillBid(undefined);
+              setBidModalVisible(true);
+            }}
+          >
+            <Text style={styles.stickyButtonText}>Plaseaza Oferta</Text>
+          </Pressable>
+        </View>
+      )}
+
+      <BidModal
+        visible={bidModalVisible}
+        auction={auction}
+        prefillAmount={prefillBid}
+        onClose={() => setBidModalVisible(false)}
+        onSuccess={() => setBidModalVisible(false)}
+      />
+    </SafeAreaView>
+  );
+}
+
+// --- DetailsTab ---
+interface DetailsTabProps {
+  auction: Auction;
+  isLeading: boolean;
+  isOutbid: boolean;
+  userMaxProxy: number;
+  canBid: boolean;
+  priceFlash: Animated.Value;
+  onQuickBid: (multiplier: number) => void;
+  onOpenMaps: () => void;
+  showApvDetails: boolean;
+  setShowApvDetails: (v: boolean) => void;
+}
+
+function DetailsTab({
+  auction,
+  isLeading,
+  isOutbid,
+  userMaxProxy,
+  canBid,
+  priceFlash,
+  onQuickBid,
+  onOpenMaps,
+  showApvDetails,
+  setShowApvDetails,
+}: DetailsTabProps) {
+  const increment = getSpeciesIncrement(auction.dominantSpecies);
+  const projectedTotal = auction.currentPricePerM3 * auction.volumeM3;
+  const isActive = auction.status === 'active';
+
+  // Compute total session length for the "din 3h 24m total" line
+  const totalDurationLabel = formatCountdown(auction.endTime).replace(/\d+s$/, '').trim();
+  const sessionDurationMs = (auction.endTime ?? 0) - (auction.startTime ?? 0);
+  const sessionLabel = (() => {
+    if (sessionDurationMs <= 0) return '';
+    const hours = Math.floor(sessionDurationMs / 3_600_000);
+    const minutes = Math.floor((sessionDurationMs % 3_600_000) / 60_000);
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  })();
+
+  return (
+    <View style={styles.tabContent}>
+      {/* Bid status banner — leading or outbid */}
+      {isLeading && (
+        <View style={[styles.banner, styles.bannerSuccess]}>
+          <Ionicons name="trophy" size={18} color={Colors.success} />
+          <Text style={[styles.bannerText, { color: Colors.success }]}>
+            Oferta ta conduce
+          </Text>
+        </View>
+      )}
+      {isOutbid && (
+        <View style={[styles.banner, styles.bannerError]}>
+          <Ionicons name="alert-circle" size={18} color={Colors.error} />
+          <Text style={[styles.bannerText, { color: Colors.error }]}>
+            Ai fost depasit! · {(auction.currentPricePerM3 ?? 0).toLocaleString('ro-RO')} RON/m³
+          </Text>
+        </View>
+      )}
+      {auction.softCloseActive && (
+        <View style={styles.softCloseBanner}>
+          <Ionicons name="time" size={14} color={Colors.warning} />
+          <Text style={styles.softCloseText}>SOFT-CLOSE — licitatia se prelungeste</Text>
+        </View>
+      )}
+
+      {/* Hero: LIVE label + segmented burn ring + price + total */}
+      <View style={styles.heroSection}>
+        {isActive && (
+          <View style={styles.liveRow}>
+            <LiveDot color={Colors.success} size={8} pulse />
+            <Text style={styles.liveText}>LIVE</Text>
+          </View>
+        )}
+
+        {isActive ? (
+          <SegmentedBurnRing
+            endTime={auction.endTime}
+            startTime={auction.startTime}
+            size={220}
+            segments={24}
+          />
+        ) : null}
+
+        {sessionLabel && (
+          <Text style={styles.sessionLabel}>din {sessionLabel} total</Text>
+        )}
+
+        <Animated.View style={{ transform: [{ scale: priceFlash }] }}>
+          <Text style={styles.heroPrice}>
+            {(auction.currentPricePerM3 ?? 0).toLocaleString('ro-RO')}
+          </Text>
+        </Animated.View>
+        <Text style={styles.heroPriceUnit}>RON/m³</Text>
+        <Text style={styles.heroTotal}>
+          Total proiectat: {formatRon(projectedTotal)}
+        </Text>
+      </View>
+
+      {/* Buffer gauge (if user has bid) */}
+      {userMaxProxy > 0 && (
+        <View style={styles.section}>
+          <BufferGauge
+            currentPrice={auction.currentPricePerM3}
+            maxProxy={userMaxProxy}
+            dominantSpecies={auction.dominantSpecies}
+          />
+        </View>
+      )}
+
+      {/* Quick bid buttons — only buyers can bid */}
+      {isActive && canBid && (
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>OFERTA RAPIDA</Text>
+          <View style={styles.quickRow}>
+            {[1, 3, 5].map((mult) => (
+              <Pressable
+                key={mult}
+                style={styles.quickButton}
+                onPress={() => onQuickBid(mult)}
+              >
+                <Text style={styles.quickLabel}>+{mult}×</Text>
+                <Text style={styles.quickPrice}>
+                  {(auction.currentPricePerM3 ?? 0) + increment * mult} RON
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Info grid — 2x2 cards */}
+      <Text style={styles.sectionHeader}>INFORMATII LOT</Text>
+      <View style={styles.infoGrid}>
+        <InfoItem icon="location-outline" label="Locatie" value={auction.location || '—'} />
+        <InfoItem icon="person-outline" label="Proprietar" value={auction.ownerName || '—'} />
+        <InfoItem icon="cube-outline" label="Volum" value={formatVolume(auction.volumeM3)} />
+        <InfoItem icon="people-outline" label="Oferte" value={String(auction.bidCount ?? 0)} />
+      </View>
+
+      {/* Location */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Locatie</Text>
+        <Pressable
+          style={styles.locationCard}
+          onPress={auction.gpsCoordinates ? onOpenMaps : undefined}
+          disabled={!auction.gpsCoordinates}
+        >
+          <Ionicons name="location-outline" size={18} color={Colors.primary} />
+          <View style={styles.locationInfo}>
+            <Text style={styles.locationText}>{auction.location}</Text>
+            <Text style={styles.locationRegion}>{auction.region}</Text>
+          </View>
+          {auction.gpsCoordinates && (
+            <Ionicons name="open-outline" size={16} color={Colors.textMuted} />
+          )}
+        </Pressable>
+      </View>
+
+      {/* Owner */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Proprietar</Text>
+        <View style={styles.ownerCard}>
+          <Ionicons name="person-circle-outline" size={20} color={Colors.textSecondary} />
+          <Text style={styles.ownerName}>{auction.ownerName}</Text>
+        </View>
+      </View>
+
+      {/* Description */}
+      {auction.description && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Descriere</Text>
+          <Text style={styles.description}>{auction.description}</Text>
+        </View>
+      )}
+
+      {/* APV technical data accordion */}
+      {(auction.apvPermitNumber || auction.apvSurfaceHa) && (
+        <View style={styles.section}>
+          <Pressable
+            style={styles.accordionHeader}
+            onPress={() => setShowApvDetails(!showApvDetails)}
+          >
+            <Text style={styles.sectionLabel}>Date tehnice APV</Text>
+            <Ionicons
+              name={showApvDetails ? 'chevron-up' : 'chevron-down'}
+              size={20}
+              color={Colors.textMuted}
+            />
+          </Pressable>
+          {showApvDetails && (
+            <View style={styles.apvCard}>
+              {auction.apvPermitNumber && (
+                <ApvRow label="Numar permis" value={auction.apvPermitNumber} />
+              )}
+              {auction.apvTreatmentType && (
+                <ApvRow label="Tratament" value={auction.apvTreatmentType} />
+              )}
+              {auction.apvExtractionMethod && (
+                <ApvRow label="Extractie" value={auction.apvExtractionMethod} />
+              )}
+              {auction.apvSurfaceHa !== undefined && (
+                <ApvRow label="Suprafata" value={`${auction.apvSurfaceHa} ha`} />
+              )}
+              {auction.apvSlopePercent !== undefined && (
+                <ApvRow label="Panta" value={`${auction.apvSlopePercent}%`} />
+              )}
+              {auction.apvAccessibility && (
+                <ApvRow label="Accesibilitate" value={auction.apvAccessibility} />
+              )}
+              {auction.apvAverageAge !== undefined && (
+                <ApvRow label="Varsta medie" value={`${auction.apvAverageAge} ani`} />
+              )}
+              {auction.apvAverageDiameter !== undefined && (
+                <ApvRow label="Diametru mediu" value={`${auction.apvAverageDiameter} cm`} />
+              )}
+              {auction.apvAverageHeight !== undefined && (
+                <ApvRow label="Inaltime medie" value={`${auction.apvAverageHeight} m`} />
+              )}
+              {auction.apvNumberOfTrees !== undefined && (
+                <ApvRow label="Numar arbori" value={String(auction.apvNumberOfTrees)} />
+              )}
+            </View>
+          )}
+        </View>
+      )}
+
+      <View style={{ height: 80 }} />
+    </View>
+  );
+}
+
+function InfoItem({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
+  return (
+    <View style={styles.infoItem}>
+      <Ionicons name={icon} size={16} color={Colors.textMuted} />
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
+function ApvRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.apvRow}>
+      <Text style={styles.apvLabel}>{label}</Text>
+      <Text style={styles.apvValue}>{value}</Text>
+    </View>
+  );
+}
+
+// --- BidsTab ---
+function BidsTab({ bids, currentUserId }: { bids: any[]; currentUserId?: string }) {
+  if (bids.length === 0) {
+    return (
+      <View style={styles.tabContent}>
+        <View style={styles.empty}>
+          <Ionicons name="hammer-outline" size={48} color={Colors.textMuted} />
+          <Text style={styles.emptyTitle}>Nicio oferta inca</Text>
+          <Text style={styles.emptySubtitle}>Fii primul care liciteaza pe acest lot</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Sort by amount desc, then by timestamp desc
+  const sorted = [...bids].sort((a, b) => {
+    if (b.amountPerM3 !== a.amountPerM3) return b.amountPerM3 - a.amountPerM3;
+    return b.timestamp - a.timestamp;
+  });
+
+  return (
+    <View style={styles.tabContent}>
+      <Text style={styles.bidsCount}>{sorted.length} oferte</Text>
+      {sorted.map((bid, idx) => (
+        <BidRow
+          key={bid.id}
+          bid={bid}
+          rank={idx + 1}
+          isCurrentUser={bid.bidderId === currentUserId}
+        />
+      ))}
+      <View style={{ height: 40 }} />
+    </View>
+  );
+}
+
+// --- ForestTab ---
+function ForestTab({ auction }: { auction: Auction }) {
+  const sorted = [...auction.speciesBreakdown].sort((a, b) => b.percentage - a.percentage);
+  const totalVolume = auction.volumeM3;
+
+  return (
+    <View style={styles.tabContent}>
+      <Text style={styles.sectionLabel}>Compozitie specii</Text>
+      <View style={styles.speciesTable}>
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderText, { flex: 2 }]}>Specie</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Volum</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>%</Text>
+        </View>
+        {sorted.map((s, i) => {
+          const isDominant = s.species === auction.dominantSpecies;
+          const speciesVolume = s.volumeM3 ?? (totalVolume * s.percentage / 100);
+          return (
+            <View key={i} style={[styles.tableRow, isDominant && styles.tableRowDominant]}>
+              <View style={[styles.speciesNameCell, { flex: 2 }]}>
+                <View style={[styles.speciesDot, { backgroundColor: getSpeciesColor(s.species) }]} />
+                <Text style={[styles.speciesName, isDominant && styles.speciesNameDominant]}>
+                  {s.species}
+                </Text>
+              </View>
+              <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
+                {formatVolume(speciesVolume)}
+              </Text>
+              <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
+                {formatPercent(s.percentage)}
+              </Text>
+            </View>
+          );
+        })}
+        <View style={[styles.tableRow, styles.tableRowTotal]}>
+          <Text style={[styles.tableCell, styles.tableCellTotal, { flex: 2 }]}>Total</Text>
+          <Text style={[styles.tableCell, styles.tableCellTotal, { flex: 1, textAlign: 'right' }]}>
+            {formatVolume(totalVolume)}
+          </Text>
+          <Text style={[styles.tableCell, styles.tableCellTotal, { flex: 1, textAlign: 'right' }]}>
+            100%
+          </Text>
+        </View>
+      </View>
+      <View style={{ height: 40 }} />
+    </View>
+  );
+}
+
+// --- DocumentsTab ---
+function DocumentsTab({ auction }: { auction: Auction }) {
+  const docs = auction.documents ?? [];
+
+  if (docs.length === 0) {
+    return (
+      <View style={styles.tabContent}>
+        <View style={styles.empty}>
+          <Ionicons name="document-outline" size={48} color={Colors.textMuted} />
+          <Text style={styles.emptyTitle}>Niciun document</Text>
+          <Text style={styles.emptySubtitle}>Aceasta licitatie nu are documente atasate</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.tabContent}>
+      {docs.map((doc) => {
+        const isPdf = doc.mimeType?.includes('pdf');
+        const sizeKB = (doc.fileSize / 1024).toFixed(0);
+        return (
+          <Pressable
+            key={doc.id}
+            style={styles.docCard}
+            onPress={() => {
+              if (doc.storagePath) Linking.openURL(doc.storagePath);
+            }}
+          >
+            <View style={[styles.docIcon, doc.isApvDocument && styles.docIconApv]}>
+              <Ionicons
+                name={isPdf ? 'document-text' : 'image'}
+                size={20}
+                color={doc.isApvDocument ? Colors.primary : Colors.textSecondary}
+              />
+            </View>
+            <View style={styles.docInfo}>
+              <Text style={styles.docName} numberOfLines={1}>{doc.fileName}</Text>
+              <Text style={styles.docMeta}>{sizeKB} KB</Text>
+            </View>
+            {doc.isApvDocument && (
+              <View style={styles.apvBadge}>
+                <Text style={styles.apvBadgeText}>APV</Text>
+              </View>
+            )}
+            <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+          </Pressable>
+        );
+      })}
+      <View style={{ height: 40 }} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.bg,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+    marginHorizontal: 4,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconButtonSmall: {
+    width: 36,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerStatusBadge: {
+    marginLeft: 4,
+  },
+  tabs: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabButtonActive: {
+    borderBottomColor: Colors.primary,
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textMuted,
+  },
+  tabTextActive: {
+    color: Colors.primary,
+  },
+  scroll: {
+    flex: 1,
+  },
+  tabContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  titleSection: {
+    marginBottom: 16,
+  },
+  auctionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+    letterSpacing: -0.04 * 20,
+    marginBottom: 8,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  softCloseBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245,158,11,0.10)',
+    borderColor: 'rgba(245,158,11,0.30)',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  softCloseText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.warning,
+    letterSpacing: 0.5,
+  },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  bannerSuccess: {
+    backgroundColor: 'rgba(34,197,94,0.10)',
+    borderColor: 'rgba(34,197,94,0.30)',
+  },
+  bannerError: {
+    backgroundColor: 'rgba(239,68,68,0.10)',
+    borderColor: 'rgba(239,68,68,0.30)',
+  },
+  bannerText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  heroSection: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 16,
+  },
+  liveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  liveText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.success,
+    letterSpacing: 1,
+  },
+  sessionLabel: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  sectionHeader: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  softCloseBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(245,158,11,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.20)',
+    marginBottom: 12,
+  },
+  heroPrice: {
+    fontSize: 64,
+    fontWeight: '800',
+    color: Colors.primary,
+    marginTop: 8,
+    letterSpacing: -2,
+  },
+  heroPriceUnit: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    marginTop: -4,
+  },
+  heroTotal: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 8,
+  },
+  section: {
+    marginBottom: 16,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textStrong,
+    marginBottom: 8,
+    letterSpacing: 0.3,
+  },
+  quickRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  quickButton: {
+    flex: 1,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    backgroundColor: Colors.surface,
+  },
+  quickLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  quickPrice: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primary,
+    marginTop: 2,
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  infoItem: {
+    width: '48%',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 12,
+    gap: 4,
+  },
+  infoLabel: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 4,
+  },
+  infoValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  locationInfo: {
+    flex: 1,
+  },
+  locationText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  locationRegion: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  ownerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  ownerName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: Colors.text,
+  },
+  description: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    lineHeight: 22,
+  },
+  accordionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  apvCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 14,
+    marginTop: 8,
+  },
+  apvRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderSubtle,
+  },
+  apvLabel: {
+    fontSize: 13,
+    color: Colors.textMuted,
+  },
+  apvValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  // Bids tab
+  bidsCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textMuted,
+    marginBottom: 12,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  empty: {
+    alignItems: 'center',
+    paddingTop: 60,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: Colors.text,
+    marginTop: 8,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: Colors.textMuted,
+  },
+  // Forest tab
+  speciesTable: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: Colors.surfaceElevated,
+  },
+  tableHeaderText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+    alignItems: 'center',
+  },
+  tableRowDominant: {
+    backgroundColor: Colors.primaryMuted,
+  },
+  tableRowTotal: {
+    backgroundColor: Colors.surfaceElevated,
+    borderTopColor: Colors.border,
+  },
+  speciesNameCell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  speciesDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  speciesName: {
+    fontSize: 13,
+    color: Colors.text,
+    flex: 1,
+  },
+  speciesNameDominant: {
+    fontWeight: '700',
+  },
+  tableCell: {
+    fontSize: 13,
+    color: Colors.text,
+  },
+  tableCellTotal: {
+    fontWeight: '700',
+  },
+  // Documents tab
+  docCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 8,
+  },
+  docIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: Colors.surfaceElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  docIconApv: {
+    backgroundColor: Colors.primarySoft,
+  },
+  docInfo: {
+    flex: 1,
+  },
+  docName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  docMeta: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  apvBadge: {
+    backgroundColor: Colors.primarySoft,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  apvBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: Colors.primary,
+    letterSpacing: 0.5,
+  },
+  // Sticky CTA
+  stickyBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.bgSoft,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  stickyButton: {
+    height: 52,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stickyButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.bg,
+  },
+});

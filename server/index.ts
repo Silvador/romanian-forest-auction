@@ -1,9 +1,34 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
+import { createRequire } from "module";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+// Use createRequire for the CJS-only `cors` package, AND go through the
+// package's explicit lib path so Node doesn't accidentally match the
+// `cors.json` file at the project root (which is for Firebase Storage,
+// completely unrelated to this middleware).
+const require = createRequire(import.meta.url);
+const cors = require("cors/lib/index.js") as (options?: any) => any;
+
 const app = express();
+
+// CORS — permissive in dev (so the mobile app can hit the API from any
+// LAN IP, Expo tunnel, or Metro origin). Locked down in production.
+const PROD_ORIGINS = [
+  "https://roforest.ro",
+  "https://www.roforest.ro",
+  "https://silvador-mlp-marketplace-app.web.app",
+];
+app.use(
+  cors({
+    origin: process.env.NODE_ENV === "production" ? PROD_ORIGINS : true,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 // Increase payload limit to 50MB for image uploads (base64 encoded images are ~33% larger)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));

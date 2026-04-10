@@ -112,17 +112,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Only forest owners can create auctions" });
       }
 
-      // Create minimal draft auction
+      // Create draft auction — merge any payload data passed from the mobile form
       const draftData = {
+        ...req.body,
         ownerId: userId,
         ownerName: userData.displayName,
         status: "draft" as const,
-        documents: [],
-        imageUrls: [],
-        documentUrls: [],
+        documents: req.body.documents || [],
+        imageUrls: req.body.imageUrls || [],
+        documentUrls: req.body.documentUrls || [],
         createdAt: Date.now(),
-        title: "",
-        description: "",
+        title: req.body.title || "",
+        description: req.body.description || "",
         bidCount: 0,
       };
 
@@ -546,7 +547,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error: any) {
-      console.error("Error placing bid:", error);
+      console.error("Error placing bid:", error?.issues ?? error);
       res.status(400).json({ error: error.message || "Failed to place bid" });
     }
   });
@@ -1165,13 +1166,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate total volume sold
       const totalVolume = completedAuctions.reduce((sum, a) => sum + (a.volumeM3 || 0), 0);
 
-      // Calculate average market price (weighted by volume) using helper function
-      const totalValue = completedAuctions.reduce((sum, a) => {
+      // Calculate average market price (weighted by volume) — only include auctions
+      // with a valid price > 0 so zero-bid ended auctions don't drag the average down
+      const pricedAuctions = completedAuctions.filter(a => getAuctionPrice(a) > 0);
+      const totalValue = pricedAuctions.reduce((sum, a) => {
         const pricePerM3 = getAuctionPrice(a);
         const volume = a.volumeM3 || 0;
         return sum + (pricePerM3 * volume);
       }, 0);
-      const avgMarketPrice = totalVolume > 0 ? totalValue / totalVolume : 0;
+      const pricedVolume = pricedAuctions.reduce((sum, a) => sum + (a.volumeM3 || 0), 0);
+      const avgMarketPrice = pricedVolume > 0 ? totalValue / pricedVolume : 0;
 
       // Find most popular species
       const speciesCount: Record<string, number> = {};

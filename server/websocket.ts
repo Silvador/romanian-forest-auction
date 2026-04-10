@@ -15,9 +15,11 @@ const socketUsers = new Map<string, SocketUser>(); // socketId -> user
 export function initializeWebSocket(httpServer: HTTPServer) {
   const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     cors: {
+      // Permissive in dev so the mobile app (Metro on any LAN IP / Expo tunnel)
+      // can connect. Locked to the production client URL in prod.
       origin: process.env.NODE_ENV === 'production'
         ? process.env.CLIENT_URL
-        : ['http://localhost:5173', 'http://localhost:3000'],
+        : true,
       credentials: true,
     },
     transports: ['websocket', 'polling'],
