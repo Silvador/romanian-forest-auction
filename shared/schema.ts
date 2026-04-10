@@ -192,7 +192,7 @@ export interface Auction {
 
 export const insertAuctionSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters"),
-  description: z.string().min(20, "Description must be at least 20 characters"),
+  description: z.string().min(20, "Description must be at least 20 characters").optional().or(z.literal('')),
   region: z.enum(regions),
   location: z.string().min(3, "Location must be at least 3 characters"),
   gpsCoordinates: z.object({

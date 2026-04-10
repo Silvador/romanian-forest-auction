@@ -156,7 +156,34 @@ export default function CreateListingScreen() {
     }
 
     if (form.apvData) {
-      Object.assign(payload, form.apvData);
+      const apv = form.apvData;
+      // Map OCR fields to schema's apv-prefixed fields — never overwrite form-entered fields
+      if (apv.permitNumber) payload.apvPermitNumber = String(apv.permitNumber);
+      if (apv.permitCode) payload.apvPermitCode = String(apv.permitCode);
+      if (apv.upLocation) payload.apvUpLocation = String(apv.upLocation);
+      if (apv.uaLocation) payload.apvUaLocation = String(apv.uaLocation);
+      if (apv.forestCompany) payload.apvForestCompany = String(apv.forestCompany);
+      if (apv.dateOfMarking) payload.apvDateOfMarking = String(apv.dateOfMarking);
+      if (apv.dimensionalSorting) payload.apvDimensionalSorting = String(apv.dimensionalSorting);
+      if (apv.volumePerSpecies) payload.apvVolumePerSpecies = apv.volumePerSpecies;
+      if (apv.numberOfTrees) payload.apvNumberOfTrees = Number(apv.numberOfTrees);
+      if (apv.averageHeight) payload.apvAverageHeight = Number(apv.averageHeight);
+      if (apv.averageDiameter) payload.apvAverageDiameter = Number(apv.averageDiameter);
+      if (apv.netVolume) payload.apvNetVolume = Number(apv.netVolume);
+      if (apv.grossVolume) payload.apvGrossVolume = Number(apv.grossVolume);
+      if (apv.surfaceHa) payload.apvSurfaceHa = Number(apv.surfaceHa);
+      if (apv.firewoodVolume) payload.apvFirewoodVolume = Number(apv.firewoodVolume);
+      if (apv.barkVolume) payload.apvBarkVolume = Number(apv.barkVolume);
+      if (apv.treatmentType) payload.apvTreatmentType = String(apv.treatmentType);
+      if (apv.extractionMethod) payload.apvExtractionMethod = String(apv.extractionMethod);
+      if (apv.sortVolumes) payload.apvSortVolumes = apv.sortVolumes;
+      if (apv.productType) payload.apvProductType = String(apv.productType);
+      if (apv.harvestYear) payload.apvHarvestYear = Number(apv.harvestYear);
+      if (apv.inventoryMethod) payload.apvInventoryMethod = String(apv.inventoryMethod);
+      if (apv.hammerMark) payload.apvHammerMark = String(apv.hammerMark);
+      if (apv.accessibility) payload.apvAccessibility = String(apv.accessibility);
+      if (apv.averageAge) payload.apvAverageAge = Number(apv.averageAge);
+      if (apv.slopePercent) payload.apvSlopePercent = Number(apv.slopePercent);
     }
 
     return payload;

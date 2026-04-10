@@ -157,12 +157,21 @@ const speciesMapping: Record<string, string> = {
   "TISA": "Tisă",
   "TISĂ": "Tisă",
 
-  // General categories
+  // General / catch-all categories
   "RASINOASE": "Molid",
   "RĂSINOASE": "Molid",
   "FOIOASE": "Stejar pedunculat",
   "ALTELE": "Altele",
   "DIVERSE": "Altele",
+  "ALTE FOIOASE TARI": "Altele",
+  "ALTE FOIOASE MOI": "Altele",
+  "ALTE FOIOASE": "Altele",
+  "ALTE RASINOASE": "Altele",
+  "ALTE RĂSINOASE": "Altele",
+  "ALTE SPECII": "Altele",
+  "DIVERSE FOIOASE": "Altele",
+  "DIVERSE RASINOASE": "Altele",
+  "DIVERSE RĂSINOASE": "Altele",
 };
 
 /**
