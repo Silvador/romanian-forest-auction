@@ -6,6 +6,9 @@ let socket: Socket | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_DELAY = 30000;
 
+// Track active rooms so they can be rejoined after reconnect
+const activeRooms = new Set<WSRoom>();
+
 // WebSocket event types matching the backend
 export type WSEvent =
   | 'bid:new'
@@ -43,6 +46,10 @@ export async function connectSocket(): Promise<Socket> {
   socket.on('connect', () => {
     reconnectAttempts = 0;
     console.log('[WS] Connected');
+    // Rejoin all rooms that were active before the reconnect
+    activeRooms.forEach((room) => {
+      socket?.emit('join', room);
+    });
   });
 
   socket.on('disconnect', (reason) => {
@@ -62,14 +69,17 @@ export function disconnectSocket() {
     socket.disconnect();
     socket = null;
     reconnectAttempts = 0;
+    activeRooms.clear();
   }
 }
 
 export function joinRoom(room: WSRoom) {
+  activeRooms.add(room);
   socket?.emit('join', room);
 }
 
 export function leaveRoom(room: WSRoom) {
+  activeRooms.delete(room);
   socket?.emit('leave', room);
 }
 

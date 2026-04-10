@@ -4,11 +4,13 @@
  * All bidding is done in €/m³ (price per cubic meter)
  */
 
+import { createHash } from "crypto";
 import { Auction, Bid } from "@shared/schema";
 import { getSpeciesIncrement, calculateProjectedTotal } from "./incrementLadder";
 
 const SOFT_CLOSE_WINDOW_MS = 3 * 60 * 1000; // 3 minutes
 const SOFT_CLOSE_EXTENSION_MS = 3 * 60 * 1000; // Extend by 3 minutes
+const SOFT_CLOSE_MAX_EXTENSIONS = 3; // Max 9 extra minutes total
 const ACTIVITY_WINDOW_MS = 15 * 60 * 1000; // 15 minutes before end
 
 export interface BidResult {
@@ -36,16 +38,11 @@ export interface ActivityCheck {
  * Generate anonymous bidder ID in format BIDDER-XXXX
  */
 export function generateAnonymousBidderId(bidderId: string, auctionId: string): string {
-  // Create a consistent hash from bidderId and auctionId
-  const combined = `${bidderId}-${auctionId}`;
-  let hash = 0;
-  for (let i = 0; i < combined.length; i++) {
-    const char = combined.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  const anonymousCode = Math.abs(hash % 10000).toString().padStart(4, '0');
-  return `BIDDER-${anonymousCode}`;
+  // SHA-256 of bidderId+auctionId: deterministic (same bidder = same code per auction)
+  // but cryptographically non-reversible unlike the previous djb2 hash.
+  const digest = createHash('sha256').update(`${bidderId}:${auctionId}`).digest('hex');
+  const code = (parseInt(digest.slice(0, 8), 16) % 10000).toString().padStart(4, '0');
+  return `BIDDER-${code}`;
 }
 
 /**
@@ -75,7 +72,7 @@ export function checkActivityEligibility(
   if (userBidsBeforeCutoff.length === 0) {
     return {
       canBid: false,
-      reason: "You must have placed a bid before the final 15 minutes to bid during the closing period"
+      reason: "Trebuie sa fi licitat inainte de ultimele 15 minute pentru a putea oferta in perioada de inchidere"
     };
   }
 
@@ -95,8 +92,13 @@ export function checkSoftClose(auction: Auction): {
   const inSoftCloseWindow = timeUntilEnd <= SOFT_CLOSE_WINDOW_MS && timeUntilEnd > 0;
 
   if (inSoftCloseWindow) {
-    // Extend auction by 3 minutes
-    const newEndTime = now + SOFT_CLOSE_EXTENSION_MS;
+    // Hard cap: never extend beyond originalEndTime + MAX_EXTENSIONS * EXTENSION_MS
+    const hardCap = (auction.originalEndTime || auction.endTime) + SOFT_CLOSE_MAX_EXTENSIONS * SOFT_CLOSE_EXTENSION_MS;
+    if (now >= hardCap) {
+      return { inSoftCloseWindow: true, shouldExtend: false };
+    }
+    // Extend by 3 minutes, clamped to hard cap
+    const newEndTime = Math.min(now + SOFT_CLOSE_EXTENSION_MS, hardCap);
     return {
       inSoftCloseWindow: true,
       shouldExtend: true,
@@ -156,7 +158,7 @@ export function processProxyBid(
     if (maxProxyPerM3 < actualPricePerM3) {
       return {
         success: false,
-        error: `Your maximum bid of €${maxProxyPerM3}/m³ is below the required bid of €${actualPricePerM3}/m³`,
+        error: `Oferta maxima de ${maxProxyPerM3} RON/m³ este sub oferta minima de ${actualPricePerM3} RON/m³`,
         currentPricePerM3: currentPricePerM3,
         secondHighestPricePerM3: secondHighestPricePerM3,
         highestMaxProxyPerM3: currentHighestMaxProxyPerM3 || currentPricePerM3,
@@ -272,17 +274,17 @@ export function validateBid(
 ): { valid: boolean; error?: string } {
   // Check if auction has started
   if (Date.now() < auction.startTime) {
-    return { valid: false, error: "Auction has not started yet" };
+    return { valid: false, error: "Licitatia nu a inceput inca" };
   }
 
   // Check if auction has ended
   if (Date.now() > auction.endTime) {
-    return { valid: false, error: "Auction has ended" };
+    return { valid: false, error: "Licitatia s-a incheiat" };
   }
 
   // Check if bidder is the owner
   if (bidderId === auction.ownerId) {
-    return { valid: false, error: "You cannot bid on your own auction" };
+    return { valid: false, error: "Nu poti licita la propriul tau lot" };
   }
 
   // BACKWARD COMPATIBILITY: Calculate €/m³ from legacy fields if needed
@@ -298,7 +300,7 @@ export function validateBid(
   if (amountPerM3 < minValidPricePerM3) {
     return {
       valid: false,
-      error: `Minimum bid is €${minValidPricePerM3}/m³ (current €${currentPricePerM3}/m³ + €${minIncrementPerM3}/m³ increment for ${dominantSpecies})`
+      error: `Oferta minima este ${minValidPricePerM3} RON/m³ (curent ${currentPricePerM3} RON/m³ + increment ${minIncrementPerM3} RON/m³ pentru ${dominantSpecies})`
     };
   }
 
@@ -306,7 +308,7 @@ export function validateBid(
   if (maxProxyPerM3 < amountPerM3) {
     return {
       valid: false,
-      error: "Your maximum bid must be at least equal to your current bid"
+      error: "Oferta maxima trebuie sa fie cel putin egala cu oferta curenta"
     };
   }
 

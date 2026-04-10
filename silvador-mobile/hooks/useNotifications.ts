@@ -1,20 +1,31 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { getNotifications, markNotificationRead } from '../lib/api';
 import type { Notification } from '../types';
 
 export function useNotifications() {
-  return useQuery<Notification[]>({
+  return useInfiniteQuery({
     queryKey: ['notifications'],
-    queryFn: getNotifications,
+    queryFn: ({ pageParam }) => getNotifications(pageParam as string | undefined),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
   });
 }
 
-export function useUnreadCount(): number {
+/** Flat list of all loaded notifications, newest first */
+export function useNotificationsList(): Notification[] {
   const { data } = useNotifications();
-  return useMemo(() => data?.filter((n) => !n.read).length ?? 0, [data]);
+  return useMemo(
+    () => data?.pages.flatMap((p) => p.notifications) ?? [],
+    [data]
+  );
+}
+
+export function useUnreadCount(): number {
+  const notifications = useNotificationsList();
+  return useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 }
 
 export function useMarkRead() {
@@ -22,12 +33,20 @@ export function useMarkRead() {
   return useMutation({
     mutationFn: markNotificationRead,
     onMutate: async (id: string) => {
-      // Optimistic update
       await queryClient.cancelQueries({ queryKey: ['notifications'] });
-      const previous = queryClient.getQueryData<Notification[]>(['notifications']);
-      queryClient.setQueryData<Notification[]>(['notifications'], (old) =>
-        old?.map((n) => (n.id === id ? { ...n, read: true } : n))
-      );
+      const previous = queryClient.getQueryData(['notifications']);
+      queryClient.setQueryData<any>(['notifications'], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            notifications: page.notifications.map((n: Notification) =>
+              n.id === id ? { ...n, read: true } : n
+            ),
+          })),
+        };
+      });
       return { previous };
     },
     onError: (_err, _id, context) => {
@@ -39,12 +58,11 @@ export function useMarkRead() {
 }
 
 export function useMarkAllRead() {
-  const queryClient = useQueryClient();
-  const { data } = useNotifications();
+  const notifications = useNotificationsList();
   const markRead = useMarkRead();
 
   return () => {
-    const unread = data?.filter((n) => !n.read) ?? [];
+    const unread = notifications.filter((n) => !n.read);
     unread.forEach((n) => markRead.mutate(n.id));
   };
 }

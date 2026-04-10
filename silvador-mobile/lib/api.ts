@@ -138,8 +138,9 @@ export function removeFromWatchlist(auctionId: string) {
 
 // --- Notifications ---
 
-export function getNotifications() {
-  return request<Notification[]>('/api/notifications');
+export async function getNotifications(cursor?: string): Promise<{ notifications: Notification[]; nextCursor: string | null }> {
+  const query = cursor ? `?cursor=${cursor}` : '';
+  return request<{ notifications: Notification[]; nextCursor: string | null }>(`/api/notifications${query}`);
 }
 
 export function markNotificationRead(id: string) {

@@ -48,7 +48,8 @@ const ROLES: Record<RoleOption, RoleData> = {
 };
 
 function toUserRole(r: RoleOption): UserRole {
-  return r === 'both' ? 'buyer' : r;
+  // 'both' maps to forest_owner — owners can also access buyer features
+  return r === 'both' ? 'forest_owner' : r;
 }
 
 export default function RegisterScreen() {

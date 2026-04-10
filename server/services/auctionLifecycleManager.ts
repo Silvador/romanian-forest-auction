@@ -99,9 +99,9 @@ export class AuctionLifecycleManager {
       try {
         const io = getIO();
         io.to(`auction:${id}`).emit('auction:ended', {
-          auctionId: parseInt(id),
-          winnerId: auction.currentBidderId ? parseInt(auction.currentBidderId) : null,
-          winnerAnonymousId: auction.currentBidderAnonymousId || null,
+          auctionId: id,
+          winnerId: auction.currentBidderId ?? null,
+          winnerAnonymousId: auction.currentBidderAnonymousId ?? null,
           finalPrice: auction.currentPricePerM3 || 0,
           totalValue: auction.projectedTotalValue || 0,
         });
@@ -307,12 +307,12 @@ export class AuctionLifecycleManager {
       try {
         const io = getIO();
         io.to(`user:${notification.userId}`).emit('notification:new', {
-          id: parseInt(docRef.id) || 0,
+          id: docRef.id,
           type: notification.type,
           title: notification.title,
           message: notification.message,
           timestamp: notification.timestamp,
-          auctionId: notification.auctionId ? parseInt(notification.auctionId as string) : undefined,
+          auctionId: notification.auctionId ? String(notification.auctionId) : undefined,
           isRead: notification.read,
         });
         console.log(`[WebSocket] Emitted notification:new to user ${notification.userId}`);

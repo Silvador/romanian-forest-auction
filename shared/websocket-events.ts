@@ -38,7 +38,7 @@ export interface ServerToClientEvents {
 // ===== EVENT DATA TYPES =====
 
 export interface AuctionUpdateEvent {
-  auctionId: number;
+  auctionId: string;
   currentPricePerM3: number;
   currentBidderAnonymousId: string | null;
   bidCount: number;
@@ -49,14 +49,14 @@ export interface AuctionUpdateEvent {
 }
 
 export interface BidNewEvent {
-  auctionId: number;
+  auctionId: string;
   currentPricePerM3: number;
   bidCount: number;
   timestamp: number;
 }
 
 export interface OutbidEvent {
-  auctionId: number;
+  auctionId: string;
   auctionTitle: string;
   newPrice: number;
   yourLastBid: number;
@@ -64,12 +64,12 @@ export interface OutbidEvent {
 }
 
 export interface NotificationEvent {
-  id: number;
+  id: string;
   type: string;
   title: string;
   message: string;
   timestamp: number;
-  auctionId?: number;
+  auctionId?: string;
   isRead: boolean;
 }
 
@@ -79,28 +79,28 @@ export interface DashboardUpdateEvent {
 }
 
 export interface AuctionEndedEvent {
-  auctionId: number;
-  winnerId: number | null;
+  auctionId: string;
+  winnerId: string | null;
   winnerAnonymousId: string | null;
   finalPrice: number;
   totalValue: number;
 }
 
 export interface AuctionEndingSoonEvent {
-  auctionId: number;
+  auctionId: string;
   timeRemaining: number;
   message: string;
 }
 
 export interface NewBidEvent {
-  auctionId: number;
+  auctionId: string;
   currentPrice: number;
   bidderAnonymousId: string;
   timestamp: number;
 }
 
 export interface AuctionSoftCloseEvent {
-  auctionId: number;
+  auctionId: string;
   newEndTime: number;
   extensionMinutes: number;
   message: string;
@@ -114,7 +114,7 @@ export interface ConnectionStatusEvent {
 // ===== SOCKET DATA TYPES =====
 
 export interface SocketUser {
-  userId: number;
+  userId: string;
   email: string;
   role: 'buyer' | 'forest_owner';
   socketId: string;

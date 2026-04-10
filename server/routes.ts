@@ -1,5 +1,6 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import rateLimit from "express-rate-limit";
 import admin from "firebase-admin";
 import { z } from "zod";
 import { insertAuctionSchema, insertBidSchema, Auction, Bid } from "@shared/schema";
@@ -282,8 +283,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rate limiter: max 15 bids per user per minute
+  const bidRateLimit = rateLimit({
+    windowMs: 60 * 1000,
+    max: 15,
+    keyGenerator: (req) => req.headers.authorization?.split('Bearer ')[1]?.slice(-16) ?? req.ip ?? 'unknown',
+    handler: (_req: Request, res: Response) => {
+      res.status(429).json({ error: "Prea multe oferte. Incearca din nou in 60 de secunde." });
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   // Place bid with proxy bidding
-  app.post("/api/bids", async (req, res) => {
+  app.post("/api/bids", bidRateLimit, async (req, res) => {
     try {
       if (!db) {
         return res.status(503).json({ 
@@ -412,7 +425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // 1. Update all viewers watching this specific auction
         io.to(`auction:${auctionId}`).emit('auction:update', {
-          auctionId: parseInt(auctionId),
+          auctionId,
           currentPricePerM3: bidResult.currentPricePerM3,
           currentBidderAnonymousId: bidResult.currentBidderAnonymousId,
           bidCount: (auction.bidCount || 0) + 1,
@@ -424,7 +437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // 2. Update feed watchers (homepage)
         io.to('feed:global').emit('bid:new', {
-          auctionId: parseInt(auctionId),
+          auctionId,
           currentPricePerM3: bidResult.currentPricePerM3,
           bidCount: (auction.bidCount || 0) + 1,
           timestamp: Date.now(),
@@ -433,7 +446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 3. Notify outbid user directly
         if (previousBidderId && previousBidderId !== userId) {
           io.to(`user:${previousBidderId}`).emit('bid:outbid', {
-            auctionId: parseInt(auctionId),
+            auctionId,
             auctionTitle: auction.title,
             newPrice: bidResult.currentPricePerM3,
             yourLastBid: auction.currentPricePerM3 || 0,
@@ -449,7 +462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // 4. Notify auction owner
         io.to(`user:${auction.ownerId}`).emit('auction:new-bid', {
-          auctionId: parseInt(auctionId),
+          auctionId,
           currentPrice: bidResult.currentPricePerM3,
           bidderAnonymousId: bidResult.currentBidderAnonymousId,
           timestamp: Date.now(),
@@ -470,7 +483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 6. If auction was extended due to soft-close, notify all watchers
         if (shouldExtendAuction) {
           io.to(`auction:${auctionId}`).emit('auction:soft-close', {
-            auctionId: parseInt(auctionId),
+            auctionId,
             newEndTime: newEndTime,
             extensionMinutes: 3,
             message: 'Auction extended by 3 minutes due to late bidding activity',
@@ -489,8 +502,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db.collection("notifications").add({
           userId: previousBidderId,
           type: "outbid",
-          title: "You've been outbid!",
-          message: `You've been outbid on "${auction.title}". Current: €${bidResult.currentPricePerM3}/m³ (€${bidResult.projectedTotalValue.toLocaleString()} total)`,
+          title: "Ai fost depasit!",
+          message: `Ai fost depasit la "${auction.title}". Pret curent: ${bidResult.currentPricePerM3} RON/m³ (${bidResult.projectedTotalValue.toLocaleString('ro-RO')} RON total)`,
           auctionId,
           read: false,
           timestamp: Date.now(),
@@ -507,7 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 previousBidder.email,
                 previousBidder.displayName,
                 auction.title,
-                previousBidAmount || bidResult.currentPricePerM3,
+                auction.currentPricePerM3 || bidResult.currentPricePerM3,
                 bidResult.currentPricePerM3,
                 auctionId
               );
@@ -1039,28 +1052,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const decodedToken = await admin.auth().verifyIdToken(token);
       const userId = decodedToken.uid;
 
-      const snapshot = await db.collection("notifications")
+      const cursor = req.query.cursor as string | undefined;
+      let query = db.collection("notifications")
         .where("userId", "==", userId)
-        .limit(50)
-        .get();
+        .orderBy("timestamp", "desc")
+        .limit(50);
+
+      if (cursor) {
+        const cursorDoc = await db.collection("notifications").doc(cursor).get();
+        if (cursorDoc.exists) {
+          query = query.startAfter(cursorDoc);
+        }
+      }
+
+      const snapshot = await query.get();
 
       const notifications = snapshot.docs.map(doc => {
         const data = doc.data();
-        const timestamp = data.timestamp instanceof admin.firestore.Timestamp 
-          ? data.timestamp.toMillis() 
+        const timestamp = data.timestamp instanceof admin.firestore.Timestamp
+          ? data.timestamp.toMillis()
           : (typeof data.timestamp === 'number' ? data.timestamp : 0);
-        
-        return {
-          id: doc.id,
-          ...data,
-          timestamp, // Normalize to number
-        };
-      }).sort((a: any, b: any) => b.timestamp - a.timestamp);
+        return { id: doc.id, ...data, timestamp };
+      });
 
-      res.json(notifications);
+      const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+      res.json({ notifications, nextCursor: lastDoc?.id ?? null });
     } catch (error: any) {
       console.error("Error fetching notifications:", error);
-      res.status(500).json({ error: "Failed to fetch notifications" });
+      res.status(500).json({ error: "Eroare la incarcarea notificarilor" });
     }
   });
 

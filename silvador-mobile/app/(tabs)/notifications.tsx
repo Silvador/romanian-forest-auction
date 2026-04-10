@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../constants/colors';
 import { NotificationCard } from '../../components/NotificationCard';
-import { useNotifications, useMarkRead, useUnreadCount, useMarkAllRead } from '../../hooks/useNotifications';
+import { useNotifications, useNotificationsList, useMarkRead, useUnreadCount, useMarkAllRead } from '../../hooks/useNotifications';
 import { useWebSocketRoom, useWebSocketEvent } from '../../hooks/useWebSocket';
 import { useToast } from '../../components/Toast';
 import { clearNotifications, setBadgeCount } from '../../lib/pushNotifications';
@@ -58,7 +58,8 @@ function groupByDate(notifications: Notification[]) {
 export default function NotificationsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: notifications, isLoading, refetch, isRefetching } = useNotifications();
+  const { isLoading, refetch, isRefetching, fetchNextPage, hasNextPage } = useNotifications();
+  const notifications = useNotificationsList();
   const unreadCount = useUnreadCount();
   const markRead = useMarkRead();
   const markAllRead = useMarkAllRead();
@@ -70,9 +71,17 @@ export default function NotificationsScreen() {
     'notification:new',
     useCallback(
       (notification) => {
-        queryClient.setQueryData<Notification[]>(['notifications'], (old) => {
-          if (!old) return [notification];
-          return [notification, ...old];
+        // Prepend to the first page of the infinite query cache
+        queryClient.setQueryData<any>(['notifications'], (old: any) => {
+          if (!old) return old;
+          const firstPage = old.pages[0];
+          return {
+            ...old,
+            pages: [
+              { ...firstPage, notifications: [notification, ...(firstPage?.notifications ?? [])] },
+              ...old.pages.slice(1),
+            ],
+          };
         });
         const copy = getNotificationCopy(notification.type);
         toast.show({
@@ -89,7 +98,7 @@ export default function NotificationsScreen() {
   useEffect(() => { clearNotifications(); }, []);
   useEffect(() => { setBadgeCount(unreadCount); }, [unreadCount]);
 
-  const sections = useMemo(() => groupByDate(notifications ?? []), [notifications]);
+  const sections = useMemo(() => groupByDate(notifications), [notifications]);
 
   const handleNotificationPress = (notification: Notification) => {
     if (!notification.read) markRead.mutate(notification.id);
@@ -136,6 +145,13 @@ export default function NotificationsScreen() {
               </Text>
             </View>
           )
+        }
+        ListFooterComponent={
+          hasNextPage ? (
+            <Pressable style={styles.loadMore} onPress={() => fetchNextPage()}>
+              <Text style={styles.loadMoreText}>Incarca mai multe</Text>
+            </Pressable>
+          ) : null
         }
       />
     </SafeAreaView>
@@ -195,5 +211,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textMuted,
     textAlign: 'center',
+  },
+  loadMore: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
   },
 });

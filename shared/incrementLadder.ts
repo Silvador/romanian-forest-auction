@@ -1,15 +1,16 @@
 /**
- * KEEP IN SYNC with shared/incrementLadder.ts
- * The mobile tsconfig cannot resolve @shared/* paths so this is a local mirror.
- * Any change to species increments must be applied in both files.
+ * Species-Based Increment Configuration — single source of truth.
+ * Imported by server/utils/incrementLadder.ts (re-export).
+ * silvador-mobile/lib/incrementLadder.ts must stay in sync manually
+ * because the mobile tsconfig cannot resolve @shared/* paths.
  */
 
-interface SpeciesIncrement {
+export interface SpeciesIncrement {
   species: string;
   incrementPerM3: number;
 }
 
-const SPECIES_INCREMENT_MAP: SpeciesIncrement[] = [
+export const SPECIES_INCREMENT_MAP: SpeciesIncrement[] = [
   { species: 'Stejar', incrementPerM3: 3 },
   { species: 'Gorun', incrementPerM3: 3 },
   { species: 'Fag', incrementPerM3: 2 },
@@ -17,7 +18,7 @@ const SPECIES_INCREMENT_MAP: SpeciesIncrement[] = [
   { species: 'Pin', incrementPerM3: 1 },
 ];
 
-const DEFAULT_INCREMENT_PER_M3 = 2;
+export const DEFAULT_INCREMENT_PER_M3 = 2;
 
 export function getSpeciesIncrement(dominantSpecies: string): number {
   const config = SPECIES_INCREMENT_MAP.find((s) => s.species === dominantSpecies);
