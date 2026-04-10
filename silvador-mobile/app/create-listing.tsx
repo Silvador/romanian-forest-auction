@@ -381,9 +381,11 @@ function Step1({
         }
       }
     } catch (err: any) {
+      console.error('[OCR] error object:', JSON.stringify(err), err);
+      const msg = err?.message || err?.error || (typeof err === 'string' ? err : JSON.stringify(err));
       Alert.alert(
         'OCR esuat',
-        err?.message || 'Nu am putut extrage datele. Poti completa manual in pasul urmator.',
+        msg || 'Nu am putut extrage datele. Poti completa manual in pasul urmator.',
         [{ text: 'OK' }]
       );
     } finally {
