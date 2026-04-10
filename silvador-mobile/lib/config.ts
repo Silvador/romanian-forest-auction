@@ -8,7 +8,7 @@
 import { Platform } from 'react-native';
 
 const DEFAULT_DEV_URL = 'http://localhost:5000';
-const DEFAULT_PROD_URL = 'https://roforest.ro';
+const DEFAULT_PROD_URL = 'https://romanian-forest-auction.up.railway.app';
 
 /**
  * Base URL for the REST API and WebSocket server.
