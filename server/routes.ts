@@ -285,11 +285,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Rate limiter: max 15 bids per user per minute
+  // Rate limiter: max 15 bids per user per minute (keyed by auth token, not IP)
   const bidRateLimit = rateLimit({
     windowMs: 60 * 1000,
     max: 15,
-    keyGenerator: (req) => req.headers.authorization?.split('Bearer ')[1]?.slice(-16) ?? req.ip ?? 'unknown',
+    keyGenerator: (req) => req.headers.authorization?.split('Bearer ')[1]?.slice(-32) ?? 'anonymous',
+    validate: { xForwardedForHeader: false },
     handler: (_req: Request, res: Response) => {
       res.status(429).json({ error: "Prea multe oferte. Incearca din nou in 60 de secunde." });
     },
