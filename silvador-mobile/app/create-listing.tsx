@@ -380,10 +380,10 @@ function Step1({
           // permit check is non-blocking
         }
       }
-    } catch {
+    } catch (err: any) {
       Alert.alert(
         'OCR esuat',
-        'Nu am putut extrage datele. Poti completa manual in pasul urmator.',
+        err?.message || 'Nu am putut extrage datele. Poti completa manual in pasul urmator.',
         [{ text: 'OK' }]
       );
     } finally {

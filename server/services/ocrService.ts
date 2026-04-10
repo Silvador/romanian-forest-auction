@@ -372,8 +372,10 @@ Return ONLY valid JSON, no other text.`,
             {
               type: "image_url",
               image_url: {
-                // Use the full data URL with proper mime type (e.g., data:image/jpeg;base64,...)
-                url: imageBase64,
+                // OpenAI requires a full data URL: data:image/jpeg;base64,...
+                url: imageBase64.startsWith('data:')
+                  ? imageBase64
+                  : `data:image/jpeg;base64,${imageBase64}`,
               },
             },
           ],
