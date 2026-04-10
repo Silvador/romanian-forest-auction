@@ -172,8 +172,10 @@ const speciesMapping: Record<string, string> = {
 export async function extractApvDataFromPdf(pdfBase64: string): Promise<ApvExtractionResult> {
   const client = getOpenAIClient();
 
+  // Strip data URL prefix if present (e.g. "data:application/pdf;base64,")
+  const rawBase64 = pdfBase64.includes(',') ? pdfBase64.split(',')[1] : pdfBase64;
   // Decode base64 → Buffer → extract text via pdf-parse
-  const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+  const pdfBuffer = Buffer.from(rawBase64, 'base64');
   const { text } = await pdfParse(pdfBuffer);
 
   if (!text || text.trim().length < 20) {
