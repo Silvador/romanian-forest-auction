@@ -371,13 +371,13 @@ function Step1({
         )}
       </Field>
 
-      <Field label="Regiune">
+      <Field label="Județ">
         <Pressable
           style={styles.dropdown}
           onPress={() => setShowRegions(!showRegions)}
         >
           <Text style={[styles.dropdownText, !form.region && styles.placeholderText]}>
-            {form.region || 'Alege regiunea'}
+            {form.region || 'Alege județul'}
           </Text>
           <Ionicons
             name={showRegions ? 'chevron-up' : 'chevron-down'}
@@ -920,7 +920,7 @@ function Step6({ form }: { form: FormData }) {
       <View style={styles.summaryCard}>
         <Text style={styles.summaryCardTitle}>Informatii de baza</Text>
         <SummaryRow label="Titlu" value={form.title} />
-        <SummaryRow label="Regiune" value={form.region} />
+        <SummaryRow label="Județ" value={form.region} />
         <SummaryRow label="Locatie" value={form.location} />
         {form.gpsLat && form.gpsLng && (
           <SummaryRow label="GPS" value={`${form.gpsLat}, ${form.gpsLng}`} />
