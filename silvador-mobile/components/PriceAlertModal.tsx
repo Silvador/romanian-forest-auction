@@ -5,7 +5,6 @@ import {
   TextInput,
   Pressable,
   Modal,
-  ScrollView,
   StyleSheet,
   ActivityIndicator,
   Dimensions,
@@ -16,6 +15,7 @@ import { Colors } from '../constants/colors';
 import { speciesTypes } from '../constants/species';
 import { regions } from '../constants/regions';
 import { useCreatePriceAlert } from '../hooks/useMarket';
+import { SearchableSelect } from './SearchableSelect';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -31,8 +31,6 @@ export function PriceAlertModal({ visible, onClose }: Props) {
   const [region, setRegion] = useState<string>('');
   const [direction, setDirection] = useState<Direction>('price_below');
   const [threshold, setThreshold] = useState('');
-  const [showSpeciesPicker, setShowSpeciesPicker] = useState(false);
-  const [showRegionPicker, setShowRegionPicker] = useState(false);
 
   const { mutate, isPending } = useCreatePriceAlert();
 
@@ -89,91 +87,25 @@ export function PriceAlertModal({ visible, onClose }: Props) {
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
           {/* Species */}
           <Text style={styles.label}>Specie (optional)</Text>
-          <Pressable
-            style={styles.dropdown}
-            onPress={() => {
-              setShowSpeciesPicker(!showSpeciesPicker);
-              setShowRegionPicker(false);
-            }}
-          >
-            <Text style={[styles.dropdownText, !species && styles.placeholder]}>
-              {species || 'Toate speciile'}
-            </Text>
-            <Ionicons
-              name={showSpeciesPicker ? 'chevron-up' : 'chevron-down'}
-              size={18}
-              color={Colors.textMuted}
-            />
-          </Pressable>
-          {showSpeciesPicker && (
-            <ScrollView style={styles.pickerList} nestedScrollEnabled>
-              <Pressable
-                style={styles.pickerItem}
-                onPress={() => {
-                  setSpecies('');
-                  setShowSpeciesPicker(false);
-                }}
-              >
-                <Text style={styles.pickerItemText}>Toate speciile</Text>
-              </Pressable>
-              {speciesTypes.map((sp) => (
-                <Pressable
-                  key={sp}
-                  style={styles.pickerItem}
-                  onPress={() => {
-                    setSpecies(sp);
-                    setShowSpeciesPicker(false);
-                  }}
-                >
-                  <Text style={styles.pickerItemText}>{sp}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
+          <SearchableSelect
+            value={species}
+            onChange={setSpecies}
+            options={speciesTypes}
+            placeholder="Toate speciile"
+            allLabel="Toate speciile"
+            title="Alege specia"
+          />
 
           {/* Region */}
-          <Text style={styles.label}>Regiune (optional)</Text>
-          <Pressable
-            style={styles.dropdown}
-            onPress={() => {
-              setShowRegionPicker(!showRegionPicker);
-              setShowSpeciesPicker(false);
-            }}
-          >
-            <Text style={[styles.dropdownText, !region && styles.placeholder]}>
-              {region || 'Toate regiunile'}
-            </Text>
-            <Ionicons
-              name={showRegionPicker ? 'chevron-up' : 'chevron-down'}
-              size={18}
-              color={Colors.textMuted}
-            />
-          </Pressable>
-          {showRegionPicker && (
-            <View style={styles.pickerList}>
-              <Pressable
-                style={styles.pickerItem}
-                onPress={() => {
-                  setRegion('');
-                  setShowRegionPicker(false);
-                }}
-              >
-                <Text style={styles.pickerItemText}>Toate regiunile</Text>
-              </Pressable>
-              {regions.map((r) => (
-                <Pressable
-                  key={r}
-                  style={styles.pickerItem}
-                  onPress={() => {
-                    setRegion(r);
-                    setShowRegionPicker(false);
-                  }}
-                >
-                  <Text style={styles.pickerItemText}>{r}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+          <Text style={styles.label}>Județ (optional)</Text>
+          <SearchableSelect
+            value={region}
+            onChange={setRegion}
+            options={regions}
+            placeholder="Toate județele"
+            allLabel="Toate județele"
+            title="Alege județul"
+          />
 
           {/* Direction */}
           <Text style={styles.label}>Conditie</Text>

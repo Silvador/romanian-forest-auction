@@ -24,6 +24,7 @@ import { regions } from '../constants/regions';
 import { speciesTypes } from '../constants/species';
 import { StepIndicator } from '../components/StepIndicator';
 import { useToast } from '../components/Toast';
+import { SearchableSelect } from '../components/SearchableSelect';
 import { publishAuction, createDraftAuction, extractApv } from '../lib/api';
 import { formatEuro } from '../lib/formatters';
 
@@ -313,7 +314,6 @@ function Step1({
   form: FormData;
   setForm: (f: FormData) => void;
 }) {
-  const [showRegions, setShowRegions] = useState(false);
   const [locating, setLocating] = useState(false);
 
   const useCurrentLocation = async () => {
@@ -372,40 +372,14 @@ function Step1({
       </Field>
 
       <Field label="Județ">
-        <Pressable
-          style={styles.dropdown}
-          onPress={() => setShowRegions(!showRegions)}
-        >
-          <Text style={[styles.dropdownText, !form.region && styles.placeholderText]}>
-            {form.region || 'Alege județul'}
-          </Text>
-          <Ionicons
-            name={showRegions ? 'chevron-up' : 'chevron-down'}
-            size={20}
-            color={Colors.textMuted}
-          />
-        </Pressable>
-        {showRegions && (
-          <View style={styles.dropdownMenu}>
-            {regions.map((r) => (
-              <Pressable
-                key={r}
-                style={styles.dropdownItem}
-                onPress={() => {
-                  setForm({ ...form, region: r });
-                  setShowRegions(false);
-                }}
-              >
-                <Text style={[
-                  styles.dropdownItemText,
-                  form.region === r && styles.dropdownItemSelected,
-                ]}>
-                  {r}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
+        <SearchableSelect
+          value={form.region || ''}
+          onChange={(r) => setForm({ ...form, region: r })}
+          options={regions}
+          placeholder="Alege județul"
+          allLabel="Alege județul"
+          title="Alege județul"
+        />
       </Field>
 
       <Field label="Locatie">
