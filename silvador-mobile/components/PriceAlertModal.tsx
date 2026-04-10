@@ -5,6 +5,7 @@ import {
   TextInput,
   Pressable,
   Modal,
+  ScrollView,
   StyleSheet,
   ActivityIndicator,
   Dimensions,
