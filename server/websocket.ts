@@ -18,7 +18,11 @@ export function initializeWebSocket(httpServer: HTTPServer) {
       // Permissive in dev so the mobile app (Metro on any LAN IP / Expo tunnel)
       // can connect. Locked to the production client URL in prod.
       origin: process.env.NODE_ENV === 'production'
-        ? process.env.CLIENT_URL
+        ? [
+            process.env.CLIENT_URL,
+            'https://romanian-forest-auction.up.railway.app',
+            ...(process.env.ADDITIONAL_ORIGINS ? process.env.ADDITIONAL_ORIGINS.split(',').map(o => o.trim()) : []),
+          ].filter(Boolean)
         : true,
       credentials: true,
     },
