@@ -30,6 +30,8 @@ function getSpeciesColor(species: string): string {
 export default function DetailedAnalyticsScreen() {
   const router = useRouter();
   const [alertModalVisible, setAlertModalVisible] = useState(false);
+  const [showAllRegions, setShowAllRegions] = useState(false);
+  const [showAllSpecies, setShowAllSpecies] = useState(false);
 
   const { data, isLoading } = useMarketAnalytics('30d');
   const { data: alerts } = usePriceAlerts();
@@ -89,7 +91,7 @@ export default function DetailedAnalyticsScreen() {
           {regionData.length > 0 && (
             <View style={styles.card}>
               <Text style={styles.cardSectionHeader}>PRET MEDIU PE JUDEȚ</Text>
-              {regionData.map((r) => {
+              {(showAllRegions ? regionData : regionData.slice(0, 5)).map((r) => {
                 const barWidth = (r.price / maxRegionPrice) * 100;
                 return (
                   <View key={r.region} style={styles.regionRow}>
@@ -111,6 +113,13 @@ export default function DetailedAnalyticsScreen() {
                   </View>
                 );
               })}
+              {regionData.length > 5 && (
+                <Pressable style={styles.expandToggle} onPress={() => setShowAllRegions((v) => !v)}>
+                  <Text style={styles.expandToggleText}>
+                    {showAllRegions ? '↑ Restrânge' : `↓ Arată toate județele (${regionData.length})`}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           )}
 
@@ -118,7 +127,7 @@ export default function DetailedAnalyticsScreen() {
           {speciesPositioning.length > 0 && (
             <View style={styles.card}>
               <Text style={styles.cardSectionHeader}>POZITIONARE PIATA</Text>
-              {speciesPositioning.map((s) => {
+              {(showAllSpecies ? speciesPositioning : speciesPositioning.slice(0, 5)).map((s) => {
                 const isUp = s.change >= 0;
                 const accentColor = isUp ? Colors.success : Colors.error;
                 const max8 = Math.max(...s.last8, 1);
@@ -160,6 +169,13 @@ export default function DetailedAnalyticsScreen() {
                   </View>
                 );
               })}
+              {speciesPositioning.length > 5 && (
+                <Pressable style={styles.expandToggle} onPress={() => setShowAllSpecies((v) => !v)}>
+                  <Text style={styles.expandToggleText}>
+                    {showAllSpecies ? '↑ Restrânge' : `↓ Arată toate speciile (${speciesPositioning.length})`}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           )}
 
@@ -365,6 +381,20 @@ const styles = StyleSheet.create({
   changeBadgeText: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  // Expand toggle
+  expandToggle: {
+    marginTop: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+  },
+  expandToggleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.primary,
+    letterSpacing: 0.2,
   },
   // Alerts
   alertsHeader: {
