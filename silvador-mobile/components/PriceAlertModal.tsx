@@ -6,6 +6,8 @@ import {
   Pressable,
   Modal,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   ActivityIndicator,
   Dimensions,
@@ -74,8 +76,12 @@ export function PriceAlertModal({ visible, onClose }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <Pressable style={styles.backdrop} onPress={handleClose} />
-      <View style={styles.sheet}>
+      <KeyboardAvoidingView
+        style={styles.kavContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Pressable style={{ flex: 1 }} onPress={handleClose} />
+        <View style={styles.sheet}>
         <View style={styles.handle} />
 
         <View style={styles.header}>
@@ -169,21 +175,19 @@ export function PriceAlertModal({ visible, onClose }: Props) {
             <Text style={styles.saveText}>Salveaza alerta</Text>
           )}
         </Pressable>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  kavContainer: {
     flex: 1,
+    justifyContent: 'flex-end',
     backgroundColor: Colors.scrim,
   },
   sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     maxHeight: SCREEN_HEIGHT * 0.85,
     backgroundColor: Colors.bgSoft,
     borderTopLeftRadius: 24,
