@@ -85,10 +85,10 @@ export default function DetailedAnalyticsScreen() {
       ) : (
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
-          {/* PRET MEDIU PE REGIUNE */}
+          {/* PRET MEDIU PE JUDEȚ */}
           {regionData.length > 0 && (
             <View style={styles.card}>
-              <Text style={styles.cardSectionHeader}>PRET MEDIU PE REGIUNE</Text>
+              <Text style={styles.cardSectionHeader}>PRET MEDIU PE JUDEȚ</Text>
               {regionData.map((r) => {
                 const barWidth = (r.price / maxRegionPrice) * 100;
                 return (

@@ -31,8 +31,10 @@ const db = getFirestore();
 
 // ── Reference data ─────────────────────────────────────────────────────────────
 const REGIONS = [
-  'Maramureș', 'Transilvania', 'Bucovina', 'Moldova',
-  'Muntenia', 'Oltenia', 'Banat', 'Crișana',
+  'Maramureș', 'Cluj', 'Brașov', 'Suceava',
+  'Bacău', 'Prahova', 'Vâlcea', 'Timiș',
+  'Bihor', 'Mureș', 'Harghita', 'Sibiu',
+  'Argeș', 'Hunedoara', 'Caraș-Severin', 'Neamț',
 ];
 
 const LOCATIONS = [
