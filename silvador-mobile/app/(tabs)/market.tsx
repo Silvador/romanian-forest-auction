@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -95,7 +96,13 @@ function PriceBarChart({
           const heightPct = Math.min(1, Math.max(0.08, p.price / maxPrice));
           const barH = BAR_HEIGHT * heightPct;
           return (
-            <View key={i} style={[chartStyles.bar, { height: barH }]} />
+            <LinearGradient
+              key={i}
+              colors={['#CCFF0050', '#CCFF0008']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={[chartStyles.bar, { height: barH }]}
+            />
           );
         })}
       </View>
@@ -168,9 +175,9 @@ const chartStyles = StyleSheet.create({
   },
   bar: {
     flex: 1,
-    backgroundColor: 'rgba(204,255,0,0.35)',
     borderTopLeftRadius: 2,
     borderTopRightRadius: 2,
+    overflow: 'hidden',
   },
   dateAxis: {
     flexDirection: 'row',

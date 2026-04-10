@@ -1222,19 +1222,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Average price by region
-      const priceByRegion: Record<string, { total: number; count: number }> = {};
+      const priceByRegion: Record<string, { total: number; count: number; volume: number }> = {};
       completedAuctions.forEach(a => {
         const pricePerM3 = getAuctionPrice(a);
         if (!priceByRegion[a.region]) {
-          priceByRegion[a.region] = { total: 0, count: 0 };
+          priceByRegion[a.region] = { total: 0, count: 0, volume: 0 };
         }
         priceByRegion[a.region].total += pricePerM3;
         priceByRegion[a.region].count++;
+        priceByRegion[a.region].volume += (a.volumeM3 ?? 0);
       });
 
       const avgPriceByRegion = Object.entries(priceByRegion).map(([region, data]) => ({
         region,
-        avgPricePerM3: data.count > 0 ? data.total / data.count : 0
+        avgPricePerM3: data.count > 0 ? data.total / data.count : 0,
+        totalVolumeM3: data.volume,
       }));
 
       // ==================== PHASE 2: NEW ANALYTICS ====================

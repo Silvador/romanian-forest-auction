@@ -46,7 +46,7 @@ export default function DetailedAnalyticsScreen() {
   const regionData = (data?.avgPriceByRegion ?? [])
     .filter((r) => r.avgPricePerM3 > 0)
     .sort((a, b) => b.avgPricePerM3 - a.avgPricePerM3)
-    .map((r) => ({ region: r.region, price: r.avgPricePerM3 }));
+    .map((r) => ({ region: r.region, price: r.avgPricePerM3, volume: (r as any).totalVolumeM3 ?? 0 }));
 
   const maxRegionPrice = regionData[0]?.price ?? 1;
 
@@ -104,6 +104,9 @@ export default function DetailedAnalyticsScreen() {
                     </View>
                     <Text style={styles.regionValue}>
                       {r.price.toFixed(0)} RON
+                      {r.volume > 0 && (
+                        <Text style={styles.regionVolume}> · {r.volume.toLocaleString('ro-RO')}m³</Text>
+                      )}
                     </Text>
                   </View>
                 );
@@ -300,11 +303,16 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   regionValue: {
-    width: 70,
+    width: 90,
     fontSize: 12,
     fontWeight: '700',
     color: Colors.primary,
     textAlign: 'right',
+  },
+  regionVolume: {
+    fontSize: 11,
+    fontWeight: '400',
+    color: Colors.textMuted,
   },
   // Species positioning
   posRow: {

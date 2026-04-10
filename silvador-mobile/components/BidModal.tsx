@@ -107,7 +107,7 @@ export function BidModal({ visible, auction, prefillAmount, onClose, onSuccess }
             totalValue: minBid * (auction.volumeM3 ?? 0),
           });
           setProxyInput('');
-          onSuccess();
+          // Don't call onSuccess() here — wait for user to dismiss the success view
         },
         onError: (err: any) => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -127,6 +127,13 @@ export function BidModal({ visible, auction, prefillAmount, onClose, onSuccess }
     onClose();
   };
 
+  const handleSuccessClose = () => {
+    setProxyInput('');
+    setBidResult(null);
+    onSuccess();
+    onClose();
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose} />
@@ -140,7 +147,7 @@ export function BidModal({ visible, auction, prefillAmount, onClose, onSuccess }
 
           {bidResult ? (
             /* ── SUCCESS STATE ─────────────────────────────── */
-            <SuccessView auction={auction} result={bidResult} onClose={handleClose} />
+            <SuccessView auction={auction} result={bidResult} onClose={handleSuccessClose} />
           ) : (
             /* ── BID FORM ──────────────────────────────────── */
             <>
@@ -482,7 +489,7 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: Colors.text,
+    color: Colors.primary,
     letterSpacing: -0.5,
   },
   successMeta: {
