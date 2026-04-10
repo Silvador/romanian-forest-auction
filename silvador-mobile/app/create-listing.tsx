@@ -759,7 +759,15 @@ function Step4({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
   };
 
   const runOcr = async (file: DocumentFile) => {
-    if (!file.mimeType.startsWith('image/')) return; // OCR only works on images
+    if (!file.mimeType.startsWith('image/')) {
+      // PDFs are accepted for upload but can't be OCR-processed client-side
+      Alert.alert(
+        'PDF detectat',
+        'Extragerea automata a datelor functioneaza doar pe fotografii. Te rugam sa fotografiezi documentul APV cu camera pentru completare automata.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     setExtracting(true);
     try {
       const base64 = await FileSystem.readAsStringAsync(file.uri, {

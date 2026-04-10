@@ -19,6 +19,8 @@ const PROD_ORIGINS = [
   "https://roforest.ro",
   "https://www.roforest.ro",
   "https://silvador-mlp-marketplace-app.web.app",
+  // Allow additional origins via env var (e.g. Railway preview URLs)
+  ...(process.env.ADDITIONAL_ORIGINS ? process.env.ADDITIONAL_ORIGINS.split(',').map(o => o.trim()) : []),
 ];
 app.use(
   cors({

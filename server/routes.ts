@@ -72,15 +72,17 @@ if (!admin.apps.length) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
-  // Health check endpoint for monitoring
-  app.get("/health", (req, res) => {
+  // Health check endpoint for monitoring (both paths — /health and /api/health for Railway)
+  const healthHandler = (_req: Request, res: Response) => {
     res.json({
       status: "ok",
       timestamp: Date.now(),
       environment: process.env.NODE_ENV || "development",
       database: db ? "connected" : "not configured"
     });
-  });
+  };
+  app.get("/health", healthHandler);
+  app.get("/api/health", healthHandler);
 
   // Create draft auction (to get ID for file uploads)
   app.post("/api/auctions/draft", async (req, res) => {

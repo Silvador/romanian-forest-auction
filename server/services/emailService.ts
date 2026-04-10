@@ -50,22 +50,22 @@ class EmailService {
     }
 
     try {
-      const html = render(options.react);
+      const html = await render(options.react);
 
-      const result = await this.resend.emails.send({
+      const { data, error } = await this.resend.emails.send({
         from: `${this.fromName} <${this.fromEmail}>`,
         to: options.to,
         subject: options.subject,
         html,
       });
 
-      if ('error' in result) {
-        console.error('❌ Resend API error:', result.error);
+      if (error) {
+        console.error('❌ Resend API error:', error);
         return null;
       }
 
-      console.log(`✅ Email sent successfully to ${options.to} (ID: ${result.data?.id})`);
-      return { id: result.data?.id || '' };
+      console.log(`✅ Email sent successfully to ${options.to} (ID: ${data?.id})`);
+      return { id: data?.id || '' };
     } catch (error) {
       console.error('❌ Error sending email:', error);
       return null;

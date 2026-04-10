@@ -263,7 +263,7 @@ async function seed() {
   for (const a of auctions) byStatus[a.status] = (byStatus[a.status] ?? 0) + 1;
   console.log('\n✅ Done!');
   console.log('Status breakdown:', byStatus);
-  console.log('Species in set:', [...new Set(auctions.map(a => a.dominantSpecies))].sort().join(', '));
+  console.log('Species in set:', Array.from(new Set(auctions.map(a => a.dominantSpecies))).sort().join(', '));
 }
 
 seed().catch(err => {

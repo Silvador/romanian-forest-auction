@@ -268,7 +268,7 @@ export class AuctionLifecycleManager {
       });
 
       // Notify losing bidders
-      for (const bidderId of losingBidders) {
+      for (const bidderId of Array.from(losingBidders)) {
         await this.createNotification({
           userId: bidderId,
           type: "auction_ending",
