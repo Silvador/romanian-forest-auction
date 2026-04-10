@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import pdfParse from "pdf-parse";
 import type { ApvExtractionResult, SpeciesBreakdown } from "@shared/schema";
 
 // Lazy initialization - only create OpenAI client when needed
@@ -164,6 +165,159 @@ const speciesMapping: Record<string, string> = {
   "DIVERSE": "Altele",
 };
 
+/**
+ * Extract APV data from a PDF file (base64-encoded).
+ * Parses the PDF text client-side, then sends to GPT-4o as a text prompt.
+ */
+export async function extractApvDataFromPdf(pdfBase64: string): Promise<ApvExtractionResult> {
+  const client = getOpenAIClient();
+
+  // Decode base64 → Buffer → extract text via pdf-parse
+  const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+  const { text } = await pdfParse(pdfBuffer);
+
+  if (!text || text.trim().length < 20) {
+    throw new Error('Could not extract text from PDF. Try photographing the document instead.');
+  }
+
+  console.log(`[OCR-PDF] Extracted ${text.length} chars from PDF`);
+
+  const response = await client.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      {
+        role: "system",
+        content: `You are an expert at extracting data from Romanian forestry documents (APV - Act de Punere în Valoare).
+Extract the following information from the provided text and return it as JSON.
+Use the same field names and extraction rules as for image-based APV documents:
+- permitNumber, permitCode, upLocation, uaLocation, forestCompany, dateOfMarking
+- surfaceHa, volumeM3, netVolume, grossVolume, firewoodVolume, barkVolume
+- treatmentType, productType, extractionMethod, harvestYear, inventoryMethod
+- hammerMark, accessibility, species (dominant species), volumePerSpecies (object mapping each species name to its volume in m³)
+- numberOfTrees, averageHeight, averageDiameter, averageAge, slopePercent
+- sortVolumes (object), dimensionalSorting (string), grading (string)
+
+CRITICAL: Extract ALL species from the species breakdown table into volumePerSpecies.
+Return ONLY valid JSON, no other text.`,
+      },
+      {
+        role: "user",
+        content: `Extract APV data from this Romanian forestry permit text:\n\n${text.slice(0, 12000)}`,
+      },
+    ],
+    max_tokens: 1000,
+    temperature: 0.1,
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error("No response from OpenAI");
+
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error("Could not parse JSON from response");
+
+  // Reuse the same normalization logic by faking the image extraction path
+  // We inject the parsed JSON as if it came from the vision model
+  const extracted = JSON.parse(jsonMatch[0]);
+  return normalizeExtracted(extracted);
+}
+
+/** Shared normalization logic for extracted APV JSON (from image or PDF path). */
+function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvExtractionResult {
+  const normalizeNumber = (value: any): number => {
+    if (!value) return 0;
+    const str = String(value)
+      .replace(/,/g, '.')
+      .replace(/[^\d.]/g, '')
+      .replace(/\.(?=.*\.)/g, '');
+    return parseFloat(str) || 0;
+  };
+
+  const normalizeSpeciesName = (species: string): string => {
+    const upperSpecies = species.toUpperCase();
+    return speciesMapping[upperSpecies] || species;
+  };
+
+  const volumePerSpecies: Record<string, number> | undefined = extracted.volumePerSpecies
+    ? Object.entries(extracted.volumePerSpecies).reduce((acc, [species, vol]) => {
+        const normalizedSpecies = normalizeSpeciesName(species);
+        const normalizedVolume = normalizeNumber(vol);
+        if (acc[normalizedSpecies]) {
+          acc[normalizedSpecies] += normalizedVolume;
+        } else {
+          acc[normalizedSpecies] = normalizedVolume;
+        }
+        return acc;
+      }, {} as Record<string, number>)
+    : undefined;
+
+  let mappedSpecies: string;
+  if (volumePerSpecies && Object.keys(volumePerSpecies).length > 0) {
+    mappedSpecies = Object.entries(volumePerSpecies).reduce((max, [species, volume]) =>
+      volume > max.volume ? { species, volume } : max,
+      { species: "", volume: 0 }
+    ).species;
+  } else if (extracted.species) {
+    mappedSpecies = normalizeSpeciesName(String(extracted.species));
+  } else {
+    mappedSpecies = "Frasin";
+  }
+
+  const volumeM3 = normalizeNumber(extracted.volumeM3);
+  const netVolume = normalizeNumber(extracted.netVolume);
+  const grossVolume = normalizeNumber(extracted.grossVolume);
+  const surfaceHa = normalizeNumber(extracted.surfaceHa) || undefined;
+  const firewoodVolume = normalizeNumber(extracted.firewoodVolume) || undefined;
+  const barkVolume = normalizeNumber(extracted.barkVolume) || undefined;
+  const numberOfTrees = extracted.numberOfTrees ? parseInt(String(extracted.numberOfTrees)) : undefined;
+  const averageHeight = normalizeNumber(extracted.averageHeight) || undefined;
+  const averageDiameter = normalizeNumber(extracted.averageDiameter) || undefined;
+
+  const sortVolumes: Record<string, number> | undefined = extracted.sortVolumes
+    ? Object.entries(extracted.sortVolumes).reduce((acc, [sort, vol]) => {
+        const normalizedVolume = normalizeNumber(vol);
+        if (normalizedVolume > 0) acc[sort] = normalizedVolume;
+        return acc;
+      }, {} as Record<string, number>)
+    : undefined;
+
+  const speciesBreakdown = calculateSpeciesBreakdown(mappedSpecies, volumeM3, volumePerSpecies);
+
+  return {
+    permitNumber: extracted.permitNumber || "",
+    permitCode: extracted.permitCode || undefined,
+    upLocation: extracted.upLocation || "",
+    uaLocation: extracted.uaLocation || "",
+    forestCompany: extracted.forestCompany || "",
+    dateOfMarking: extracted.dateOfMarking || undefined,
+    surfaceHa,
+    volumeM3,
+    netVolume: netVolume || undefined,
+    grossVolume: grossVolume || undefined,
+    firewoodVolume,
+    barkVolume,
+    treatmentType: extracted.treatmentType || undefined,
+    productType: extracted.productType || undefined,
+    extractionMethod: extracted.extractionMethod || undefined,
+    harvestYear: extracted.harvestYear ? parseInt(String(extracted.harvestYear)) : undefined,
+    inventoryMethod: extracted.inventoryMethod || undefined,
+    hammerMark: extracted.hammerMark || undefined,
+    accessibility: extracted.accessibility || undefined,
+    species: mappedSpecies,
+    volumePerSpecies,
+    numberOfTrees,
+    averageHeight,
+    averageDiameter,
+    averageAge: extracted.averageAge ? parseInt(String(extracted.averageAge)) : undefined,
+    slopePercent: extracted.slopePercent ? parseInt(String(extracted.slopePercent)) : undefined,
+    sortVolumes,
+    dimensionalSorting: extracted.dimensionalSorting || undefined,
+    speciesBreakdown,
+    diameter: extracted.diameter || "",
+    grading: extracted.grading || "",
+    rawText,
+  };
+}
+
 export async function extractApvData(imageBase64: string): Promise<ApvExtractionResult> {
   try {
     const client = getOpenAIClient();
@@ -240,129 +394,8 @@ Return ONLY valid JSON, no other text.`,
     }
 
     const extracted = JSON.parse(jsonMatch[0]);
-
-    // Enhanced logging for species extraction debugging
     console.log(`[OCR] Extracted raw species: ${extracted.species}`);
-    console.log(`[OCR] Extracted volumePerSpecies:`, extracted.volumePerSpecies);
-
-    const normalizeNumber = (value: any): number => {
-      if (!value) return 0;
-      const str = String(value)
-        .replace(/,/g, '.')
-        .replace(/[^\d.]/g, '')
-        .replace(/\.(?=.*\.)/g, '');
-      return parseFloat(str) || 0;
-    };
-
-    const normalizeSpeciesName = (species: string): string => {
-      const upperSpecies = species.toUpperCase();
-      return speciesMapping[upperSpecies] || species; // Keep original name if not in mapping
-    };
-
-    // First, normalize volumePerSpecies to get accurate species data
-    const volumePerSpecies: Record<string, number> | undefined = extracted.volumePerSpecies
-      ? Object.entries(extracted.volumePerSpecies).reduce((acc, [species, vol]) => {
-          const normalizedSpecies = normalizeSpeciesName(species);
-          const normalizedVolume = normalizeNumber(vol);
-
-          console.log(`[OCR] Mapping species: "${species}" -> "${normalizedSpecies}" (${normalizedVolume} m³)`);
-
-          if (acc[normalizedSpecies]) {
-            acc[normalizedSpecies] += normalizedVolume;
-          } else {
-            acc[normalizedSpecies] = normalizedVolume;
-          }
-
-          return acc;
-        }, {} as Record<string, number>)
-      : undefined;
-
-    console.log(`[OCR] Final normalized volumePerSpecies:`, volumePerSpecies);
-
-    // Determine the dominant species intelligently
-    let mappedSpecies: string;
-
-    if (volumePerSpecies && Object.keys(volumePerSpecies).length > 0) {
-      // Find the species with the highest volume
-      const dominantSpecies = Object.entries(volumePerSpecies).reduce((max, [species, volume]) =>
-        volume > max.volume ? { species, volume } : max,
-        { species: "", volume: 0 }
-      ).species;
-      mappedSpecies = dominantSpecies;
-      console.log(`[OCR] Dominant species from volumePerSpecies: ${mappedSpecies}`);
-    } else if (extracted.species) {
-      // Fallback to the extracted primary species
-      const speciesValue = extracted.species;
-      mappedSpecies = normalizeSpeciesName(speciesValue);
-      console.log(`[OCR] Using extracted primary species: ${mappedSpecies}`);
-    } else {
-      // Last resort fallback
-      mappedSpecies = "Frasin";
-      console.log(`[OCR] Using fallback species: ${mappedSpecies}`);
-    }
-
-    const volumeM3 = normalizeNumber(extracted.volumeM3);
-    const netVolume = normalizeNumber(extracted.netVolume);
-    const grossVolume = normalizeNumber(extracted.grossVolume);
-    const surfaceHa = normalizeNumber(extracted.surfaceHa) || undefined;
-    const firewoodVolume = normalizeNumber(extracted.firewoodVolume) || undefined;
-    const barkVolume = normalizeNumber(extracted.barkVolume) || undefined;
-    const numberOfTrees = extracted.numberOfTrees ? parseInt(String(extracted.numberOfTrees)) : undefined;
-    const averageHeight = normalizeNumber(extracted.averageHeight) || undefined;
-    const averageDiameter = normalizeNumber(extracted.averageDiameter) || undefined;
-
-    const sortVolumes: Record<string, number> | undefined = extracted.sortVolumes
-      ? Object.entries(extracted.sortVolumes).reduce((acc, [sort, vol]) => {
-          const normalizedVolume = normalizeNumber(vol);
-          if (normalizedVolume > 0) {
-            acc[sort] = normalizedVolume;
-          }
-          return acc;
-        }, {} as Record<string, number>)
-      : undefined;
-
-    const speciesBreakdown: SpeciesBreakdown[] = calculateSpeciesBreakdown(
-      mappedSpecies,
-      volumeM3,
-      volumePerSpecies
-    );
-
-    console.log('[OCR] Final speciesBreakdown array:', JSON.stringify(speciesBreakdown, null, 2));
-
-    return {
-      permitNumber: extracted.permitNumber || "",
-      permitCode: extracted.permitCode || undefined,
-      upLocation: extracted.upLocation || "",
-      uaLocation: extracted.uaLocation || "",
-      forestCompany: extracted.forestCompany || "",
-      dateOfMarking: extracted.dateOfMarking || undefined,
-      surfaceHa,
-      volumeM3,
-      netVolume: netVolume || undefined,
-      grossVolume: grossVolume || undefined,
-      firewoodVolume,
-      barkVolume,
-      treatmentType: extracted.treatmentType || undefined,
-      productType: extracted.productType || undefined,
-      extractionMethod: extracted.extractionMethod || undefined,
-      harvestYear: extracted.harvestYear ? parseInt(String(extracted.harvestYear)) : undefined,
-      inventoryMethod: extracted.inventoryMethod || undefined,
-      hammerMark: extracted.hammerMark || undefined,
-      accessibility: extracted.accessibility || undefined,
-      species: mappedSpecies,
-      volumePerSpecies,
-      numberOfTrees,
-      averageHeight,
-      averageDiameter,
-      averageAge: extracted.averageAge ? parseInt(String(extracted.averageAge)) : undefined,
-      slopePercent: extracted.slopePercent ? parseInt(String(extracted.slopePercent)) : undefined,
-      sortVolumes,
-      dimensionalSorting: extracted.dimensionalSorting || undefined,
-      speciesBreakdown,
-      diameter: extracted.diameter || "",
-      grading: extracted.grading || "",
-      rawText: content,
-    };
+    return normalizeExtracted(extracted, content);
   } catch (error) {
     console.error("OCR extraction error:", error);
     throw new Error(`Failed to extract APV data: ${error instanceof Error ? error.message : 'Unknown error'}`);

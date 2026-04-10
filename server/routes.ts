@@ -897,6 +897,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check if a permit number is already listed (must come BEFORE /:id)
+  app.get("/api/auctions/check-permit/:permitNumber", async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) return res.status(401).json({ error: "Unauthorized" });
+      await admin.auth().verifyIdToken(token);
+
+      const { permitNumber } = req.params;
+      if (!db) return res.json({ exists: false, auctionId: null });
+
+      const snapshot = await db.collection('auctions')
+        .where('apvData.permitNumber', '==', permitNumber)
+        .limit(1)
+        .get();
+
+      res.json({ exists: !snapshot.empty, auctionId: snapshot.docs[0]?.id ?? null });
+    } catch (error) {
+      console.error("Error checking permit:", error);
+      res.status(500).json({ error: "Failed to check permit" });
+    }
+  });
+
   // Get auction by ID (parameterized route - must come AFTER specific routes)
   app.get("/api/auctions/:id", async (req, res) => {
     try {
@@ -1027,12 +1049,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await admin.auth().verifyIdToken(token);
 
-      const { imageBase64 } = req.body;
-      if (!imageBase64) {
-        return res.status(400).json({ error: "Image data is required" });
+      const { imageBase64, pdfBase64 } = req.body;
+      if (!imageBase64 && !pdfBase64) {
+        return res.status(400).json({ error: "Image or PDF data is required" });
       }
 
-      const extractedData = await extractApvData(imageBase64);
+      let extractedData;
+      if (pdfBase64) {
+        const { extractApvDataFromPdf } = await import("./services/ocrService");
+        extractedData = await extractApvDataFromPdf(pdfBase64);
+      } else {
+        extractedData = await extractApvData(imageBase64);
+      }
       res.json(extractedData);
     } catch (error: any) {
       console.error("OCR extraction error:", error);

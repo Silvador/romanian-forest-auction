@@ -206,9 +206,16 @@ export function registerPushToken(token: string) {
 
 // --- OCR ---
 
-export function extractApv(imageBase64: string) {
+export function extractApv(fileBase64: string, mimeType: string = 'image/jpeg') {
+  const isPdf = mimeType === 'application/pdf';
   return request<Record<string, unknown>>('/api/ocr/extract-apv', {
     method: 'POST',
-    body: JSON.stringify({ imageBase64 }),
+    body: JSON.stringify(isPdf ? { pdfBase64: fileBase64 } : { imageBase64: fileBase64 }),
   });
+}
+
+export function checkPermitExists(permitNumber: string) {
+  return request<{ exists: boolean; auctionId: string | null }>(
+    `/api/auctions/check-permit/${encodeURIComponent(permitNumber)}`
+  );
 }

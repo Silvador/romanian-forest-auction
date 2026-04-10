@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -25,10 +25,11 @@ import { speciesTypes } from '../constants/species';
 import { StepIndicator } from '../components/StepIndicator';
 import { useToast } from '../components/Toast';
 import { SearchableSelect } from '../components/SearchableSelect';
-import { publishAuction, createDraftAuction, extractApv } from '../lib/api';
+import { publishAuction, createDraftAuction, extractApv, checkPermitExists } from '../lib/api';
 import { formatEuro } from '../lib/formatters';
+import { useMarketAnalytics } from '../hooks/useMarket';
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 3;
 
 interface DocumentFile {
   uri: string;
@@ -38,29 +39,20 @@ interface DocumentFile {
 }
 
 interface FormData {
-  // Step 1
   title: string;
   description: string;
   region: string;
   location: string;
   gpsLat: string;
   gpsLng: string;
-
-  // Step 2
   volumeM3: string;
   startingPricePerM3: string;
   speciesBreakdown: { species: string; percentage: string }[];
-
-  // Step 3
   startInMinutes: string;
   durationValue: string;
   durationUnit: 'minute' | 'ore' | 'zile';
-
-  // Step 4
   apvFile: DocumentFile | null;
   apvData: Record<string, any> | null;
-
-  // Step 5
   documents: DocumentFile[];
 }
 
@@ -89,15 +81,9 @@ export default function CreateListingScreen() {
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
 
-  // --- Validation ---
   const stepValid = useMemo(() => {
     if (step === 1) {
-      return (
-        form.title.length >= 5 &&
-        form.description.length >= 20 &&
-        form.region &&
-        form.location.length >= 3
-      );
+      return true; // APV is optional — seller can always proceed
     }
     if (step === 2) {
       const volume = parseFloat(form.volumeM3);
@@ -107,6 +93,9 @@ export default function CreateListingScreen() {
         0
       );
       return (
+        form.title.length >= 5 &&
+        form.region.length > 0 &&
+        form.location.length >= 3 &&
         volume >= 1 &&
         price >= 0.1 &&
         form.speciesBreakdown.every((s) => s.species && parseFloat(s.percentage) > 0) &&
@@ -116,10 +105,9 @@ export default function CreateListingScreen() {
     if (step === 3) {
       return parseInt(form.startInMinutes, 10) >= 1 && parseFloat(form.durationValue) >= 1;
     }
-    return true; // Steps 4-5 optional, 6 always valid
+    return true;
   }, [step, form]);
 
-  // --- Step navigation ---
   const goNext = () => {
     if (!stepValid) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -134,7 +122,6 @@ export default function CreateListingScreen() {
     }
   };
 
-  // --- Submit ---
   const buildPayload = () => {
     const startTime = Date.now() + parseInt(form.startInMinutes, 10) * 60 * 1000;
     const durationMs =
@@ -168,7 +155,6 @@ export default function CreateListingScreen() {
       };
     }
 
-    // Merge APV data if present
     if (form.apvData) {
       Object.assign(payload, form.apvData);
     }
@@ -177,7 +163,6 @@ export default function CreateListingScreen() {
   };
 
   const handleSaveDraft = async () => {
-    // Hard guard — Pressable's `disabled` doesn't fully block rapid taps on web
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -188,9 +173,7 @@ export default function CreateListingScreen() {
         title: 'Ciorna salvata',
         message: 'Poti reveni la ea oricand din panou',
       });
-      // Navigate immediately so the button can't be re-tapped
       router.back();
-      // Don't reset submitting — we're leaving this screen
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       toast.show({
@@ -203,7 +186,6 @@ export default function CreateListingScreen() {
   };
 
   const handlePublish = async () => {
-    // Hard guard — Pressable's `disabled` doesn't fully block rapid taps on web
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -214,9 +196,7 @@ export default function CreateListingScreen() {
         title: 'Licitatie publicata',
         message: 'Va fi vizibila in feed',
       });
-      // Navigate immediately so the button can't be re-tapped
       router.back();
-      // Don't reset submitting — we're leaving this screen
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       toast.show({
@@ -230,7 +210,6 @@ export default function CreateListingScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={goBack} hitSlop={8} style={styles.headerButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
@@ -252,12 +231,8 @@ export default function CreateListingScreen() {
           {step === 1 && <Step1 form={form} setForm={setForm} />}
           {step === 2 && <Step2 form={form} setForm={setForm} />}
           {step === 3 && <Step3 form={form} setForm={setForm} />}
-          {step === 4 && <Step4 form={form} setForm={setForm} />}
-          {step === 5 && <Step5 form={form} setForm={setForm} />}
-          {step === 6 && <Step6 form={form} />}
         </ScrollView>
 
-        {/* Action bar */}
         <View style={styles.actionBar}>
           <Pressable
             style={[styles.actionButton, styles.actionButtonGhost]}
@@ -305,7 +280,7 @@ export default function CreateListingScreen() {
 }
 
 // =====================================================
-// STEP 1 — Basic Info
+// STEP 1 — APV Scan
 // =====================================================
 function Step1({
   form,
@@ -314,7 +289,213 @@ function Step1({
   form: FormData;
   setForm: (f: FormData) => void;
 }) {
+  const [extracting, setExtracting] = useState(false);
+
+  // Auto-open camera when step mounts
+  useEffect(() => {
+    if (!form.apvFile) {
+      takePhoto();
+    }
+  }, []);
+
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permisiune', 'Avem nevoie de acces la camera');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    const docFile: DocumentFile = {
+      uri: asset.uri,
+      name: `apv_${Date.now()}.jpg`,
+      size: asset.fileSize ?? 0,
+      mimeType: 'image/jpeg',
+    };
+    await runOcr(docFile);
+  };
+
+  const pickFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'image/jpeg', 'image/png'],
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const file = result.assets[0];
+    const docFile: DocumentFile = {
+      uri: file.uri,
+      name: file.name,
+      size: file.size ?? 0,
+      mimeType: file.mimeType ?? 'application/octet-stream',
+    };
+    await runOcr(docFile);
+  };
+
+  const runOcr = async (file: DocumentFile) => {
+    setExtracting(true);
+    try {
+      const base64 = await FileSystem.readAsStringAsync(file.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const data = await extractApv(base64, file.mimeType);
+
+      // Build pre-filled form values from OCR
+      const apvSpecies = (data as any).speciesBreakdown?.map((s: any) => ({
+        species: String(s.species),
+        percentage: String(s.percentage),
+      }));
+
+      const autoTitle = (data as any).permitNumber
+        ? `Lot APV ${(data as any).permitNumber} — ${(data as any).species || ''}`
+        : '';
+
+      setForm({
+        ...form,
+        apvFile: file,
+        apvData: data as Record<string, any>,
+        title: autoTitle || form.title,
+        volumeM3: (data as any).volumeM3 > 0 ? String((data as any).volumeM3) : form.volumeM3,
+        speciesBreakdown:
+          apvSpecies && apvSpecies.length > 0 ? apvSpecies : form.speciesBreakdown,
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Check for duplicate permit
+      const permitNumber = (data as any).permitNumber;
+      if (permitNumber) {
+        try {
+          const check = await checkPermitExists(String(permitNumber));
+          if (check.exists) {
+            Alert.alert(
+              'APV deja listat',
+              `Acest APV a mai fost folosit intr-o licitatie anterioara. Verifica datele inainte sa continui.`,
+              [{ text: 'Am inteles' }]
+            );
+          }
+        } catch {
+          // permit check is non-blocking
+        }
+      }
+    } catch {
+      Alert.alert(
+        'OCR esuat',
+        'Nu am putut extrage datele. Poti completa manual in pasul urmator.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const resetScan = () => {
+    setForm({ ...form, apvFile: null, apvData: null });
+  };
+
+  return (
+    <View>
+      <Text style={styles.stepCounter}>Pasul 1 din {TOTAL_STEPS}</Text>
+      <Text style={styles.stepTitle}>Scaneaza APV</Text>
+      <Text style={styles.stepSubtitle}>
+        Extrage automat volumul, specia si datele permisului. Optional — poti sari peste.
+      </Text>
+
+      {extracting ? (
+        <View style={styles.scanningBox}>
+          <ActivityIndicator color={Colors.primary} size="large" />
+          <Text style={styles.scanningTitle}>Analizam documentul...</Text>
+          <Text style={styles.scanningSubtitle}>Extragere date cu AI</Text>
+        </View>
+      ) : form.apvFile && form.apvData ? (
+        // Success card
+        <View style={styles.apvSuccessCard}>
+          <View style={styles.apvSuccessHeader}>
+            <Ionicons name="checkmark-circle" size={22} color={Colors.success} />
+            <Text style={styles.apvSuccessTitle}>Date extrase</Text>
+            <Pressable onPress={resetScan} hitSlop={8}>
+              <Ionicons name="refresh-outline" size={20} color={Colors.textMuted} />
+            </Pressable>
+          </View>
+          {(form.apvData.permitNumber) && (
+            <View style={styles.apvDataRow}>
+              <Text style={styles.apvDataKey}>Nr. APV</Text>
+              <Text style={styles.apvDataValue}>{String(form.apvData.permitNumber)}</Text>
+            </View>
+          )}
+          {form.apvData.volumeM3 > 0 && (
+            <View style={styles.apvDataRow}>
+              <Text style={styles.apvDataKey}>Volum</Text>
+              <Text style={styles.apvDataValue}>{form.apvData.volumeM3} m³</Text>
+            </View>
+          )}
+          {form.apvData.species && (
+            <View style={styles.apvDataRow}>
+              <Text style={styles.apvDataKey}>Specie principala</Text>
+              <Text style={styles.apvDataValue}>{String(form.apvData.species)}</Text>
+            </View>
+          )}
+          {form.apvData.speciesBreakdown?.length > 1 && (
+            <View style={styles.apvDataRow}>
+              <Text style={styles.apvDataKey}>Compozitie</Text>
+              <Text style={styles.apvDataValue}>{form.apvData.speciesBreakdown.length} specii</Text>
+            </View>
+          )}
+          <Text style={styles.apvSuccessHint}>Datele au fost pre-completate. Verifica in pasul urmator.</Text>
+        </View>
+      ) : (
+        // Scan buttons (shown if camera was dismissed without scanning)
+        <View style={styles.uploadOptions}>
+          <Pressable style={styles.uploadButton} onPress={takePhoto}>
+            <Ionicons name="camera" size={32} color={Colors.primary} />
+            <Text style={styles.uploadButtonText}>Fotografiaza APV</Text>
+          </Pressable>
+          <Pressable style={styles.uploadButton} onPress={pickFile}>
+            <Ionicons name="document-attach-outline" size={32} color={Colors.primary} />
+            <Text style={styles.uploadButtonText}>PDF / Galerie</Text>
+          </Pressable>
+        </View>
+      )}
+
+      <View style={styles.infoBox}>
+        <Ionicons name="information-circle" size={16} color={Colors.info} />
+        <Text style={styles.infoBoxText}>
+          Apasa "Inainte" pentru a continua fara APV si completa manual.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// =====================================================
+// STEP 2 — Review & Edit
+// =====================================================
+function Step2({
+  form,
+  setForm,
+}: {
+  form: FormData;
+  setForm: (f: FormData) => void;
+}) {
   const [locating, setLocating] = useState(false);
+  const { data: marketData } = useMarketAnalytics('30d');
+
+  const hasApvData = !!form.apvData;
+
+  const totalPercent = form.speciesBreakdown.reduce(
+    (sum, s) => sum + (parseFloat(s.percentage) || 0),
+    0
+  );
+
+  // Market price hint for selected region
+  const marketHint = form.region
+    ? marketData?.avgPriceByRegion?.find((r: any) => r.region === form.region)
+    : null;
+  const suggestedPrice = marketHint
+    ? Math.round((marketHint as any).avgPricePerM3 * 0.9)
+    : null;
 
   const useCurrentLocation = async () => {
     setLocating(true);
@@ -330,116 +511,12 @@ function Step1({
         gpsLat: loc.coords.latitude.toFixed(6),
         gpsLng: loc.coords.longitude.toFixed(6),
       });
-    } catch (err) {
+    } catch {
       Alert.alert('Eroare', 'Nu s-a putut obtine locatia');
     } finally {
       setLocating(false);
     }
   };
-
-  return (
-    <View>
-      <Text style={styles.stepCounter}>Pasul 1 din {TOTAL_STEPS}</Text>
-      <Text style={styles.stepTitle}>Informatii de baza</Text>
-      <Text style={styles.stepSubtitle}>Completeaza detaliile principale ale licitatiei tale.</Text>
-
-      <Field label="Titlu">
-        <TextInput
-          style={styles.input}
-          value={form.title}
-          onChangeText={(t) => setForm({ ...form, title: t })}
-          placeholder="ex: Lot 45 — Molid si Brad"
-          placeholderTextColor={Colors.textMuted}
-        />
-        {form.title.length > 0 && form.title.length < 5 && (
-          <Text style={styles.errorText}>Minim 5 caractere</Text>
-        )}
-      </Field>
-
-      <Field label="Descriere">
-        <TextInput
-          style={[styles.input, styles.inputMulti]}
-          value={form.description}
-          onChangeText={(t) => setForm({ ...form, description: t })}
-          placeholder="Descriere detaliata a lotului..."
-          placeholderTextColor={Colors.textMuted}
-          multiline
-          numberOfLines={4}
-        />
-        {form.description.length > 0 && form.description.length < 20 && (
-          <Text style={styles.errorText}>Minim 20 caractere ({form.description.length}/20)</Text>
-        )}
-      </Field>
-
-      <Field label="Județ">
-        <SearchableSelect
-          value={form.region || ''}
-          onChange={(r) => setForm({ ...form, region: r })}
-          options={regions}
-          placeholder="Alege județul"
-          allLabel="Alege județul"
-          title="Alege județul"
-        />
-      </Field>
-
-      <Field label="Locatie">
-        <TextInput
-          style={styles.input}
-          value={form.location}
-          onChangeText={(t) => setForm({ ...form, location: t })}
-          placeholder="ex: Hunedoara"
-          placeholderTextColor={Colors.textMuted}
-        />
-      </Field>
-
-      <Field label="Coordonate GPS (optional)">
-        <View style={styles.gpsRow}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            value={form.gpsLat}
-            onChangeText={(t) => setForm({ ...form, gpsLat: t })}
-            placeholder="Latitudine"
-            placeholderTextColor={Colors.textMuted}
-            keyboardType="decimal-pad"
-          />
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            value={form.gpsLng}
-            onChangeText={(t) => setForm({ ...form, gpsLng: t })}
-            placeholder="Longitudine"
-            placeholderTextColor={Colors.textMuted}
-            keyboardType="decimal-pad"
-          />
-        </View>
-        <Pressable
-          style={styles.locationButton}
-          onPress={useCurrentLocation}
-          disabled={locating}
-        >
-          {locating ? (
-            <ActivityIndicator color={Colors.primary} size="small" />
-          ) : (
-            <>
-              <Ionicons name="location" size={16} color={Colors.primary} />
-              <Text style={styles.locationButtonText}>Foloseste locatia curenta</Text>
-            </>
-          )}
-        </Pressable>
-      </Field>
-    </View>
-  );
-}
-
-// =====================================================
-// STEP 2 — Timber Details
-// =====================================================
-function Step2({ form, setForm }: { form: FormData; setForm: (f: FormData) => void }) {
-  const [pickerOpenIdx, setPickerOpenIdx] = useState<number | null>(null);
-
-  const totalPercent = form.speciesBreakdown.reduce(
-    (sum, s) => sum + (parseFloat(s.percentage) || 0),
-    0
-  );
 
   const addSpecies = () => {
     setForm({
@@ -475,10 +552,51 @@ function Step2({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
 
   return (
     <View>
-      <Text style={styles.stepTitle}>Detalii lemn</Text>
-      <Text style={styles.stepSubtitle}>Volume, pret si compozitie</Text>
+      <Text style={styles.stepCounter}>Pasul 2 din {TOTAL_STEPS}</Text>
+      <Text style={styles.stepTitle}>Verifica datele</Text>
+      <Text style={styles.stepSubtitle}>
+        {hasApvData ? 'Date pre-completate din APV. Editeaza daca e necesar.' : 'Completeaza detaliile licitatiei.'}
+      </Text>
 
-      <Field label="Volum total (m³)">
+      {/* Title */}
+      <Field label="Titlu" apvFilled={hasApvData && form.title.length > 0}>
+        <TextInput
+          style={styles.input}
+          value={form.title}
+          onChangeText={(t) => setForm({ ...form, title: t })}
+          placeholder="ex: Lot 45 — Molid si Brad"
+          placeholderTextColor={Colors.textMuted}
+        />
+        {form.title.length > 0 && form.title.length < 5 && (
+          <Text style={styles.errorText}>Minim 5 caractere</Text>
+        )}
+      </Field>
+
+      {/* Region */}
+      <Field label="Județ">
+        <SearchableSelect
+          value={form.region || ''}
+          onChange={(r) => setForm({ ...form, region: r })}
+          options={regions}
+          placeholder="Alege județul"
+          allLabel="Alege județul"
+          title="Alege județul"
+        />
+      </Field>
+
+      {/* Location */}
+      <Field label="Locatie">
+        <TextInput
+          style={styles.input}
+          value={form.location}
+          onChangeText={(t) => setForm({ ...form, location: t })}
+          placeholder="ex: Hunedoara, Valea Mare"
+          placeholderTextColor={Colors.textMuted}
+        />
+      </Field>
+
+      {/* Volume */}
+      <Field label="Volum total (m³)" apvFilled={hasApvData && parseFloat(form.volumeM3) > 0}>
         <TextInput
           style={styles.input}
           value={form.volumeM3}
@@ -489,25 +607,17 @@ function Step2({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
         />
       </Field>
 
-      <Field label="Pret de pornire (RON/m³)">
-        <TextInput
-          style={styles.input}
-          value={form.startingPricePerM3}
-          onChangeText={(t) => setForm({ ...form, startingPricePerM3: t })}
-          placeholder="ex: 185"
-          placeholderTextColor={Colors.textMuted}
-          keyboardType="decimal-pad"
-        />
-        {form.volumeM3 && form.startingPricePerM3 && (
-          <Text style={styles.helperText}>
-            Total proiectat: {formatEuro(parseFloat(form.volumeM3) * parseFloat(form.startingPricePerM3))}
-          </Text>
-        )}
-      </Field>
-
+      {/* Species breakdown */}
       <View style={styles.speciesSection}>
         <View style={styles.speciesSectionHeader}>
-          <Text style={styles.fieldLabel}>Compozitie specii</Text>
+          <View style={styles.fieldLabelRow}>
+            <Text style={styles.fieldLabel}>Compozitie specii</Text>
+            {hasApvData && form.speciesBreakdown.some((s) => s.species) && (
+              <View style={styles.apvBadge}>
+                <Text style={styles.apvBadgeText}>· APV</Text>
+              </View>
+            )}
+          </View>
           <View style={[
             styles.percentBadge,
             Math.abs(totalPercent - 100) > 0.01 && styles.percentBadgeError,
@@ -523,18 +633,16 @@ function Step2({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
 
         {form.speciesBreakdown.map((s, idx) => (
           <View key={idx} style={styles.speciesRow}>
-            <Pressable
-              style={[styles.speciesPicker, { flex: 2 }]}
-              onPress={() => setPickerOpenIdx(pickerOpenIdx === idx ? null : idx)}
-            >
-              <Text style={[
-                styles.speciesPickerText,
-                !s.species && styles.placeholderText,
-              ]}>
-                {s.species || 'Alege specie'}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={Colors.textMuted} />
-            </Pressable>
+            <View style={{ flex: 2 }}>
+              <SearchableSelect
+                value={s.species}
+                onChange={(val) => updateSpecies(idx, 'species', val)}
+                options={speciesTypes}
+                placeholder="Alege specia"
+                allLabel="Alege specia"
+                title="Alege specia"
+              />
+            </View>
             <TextInput
               style={[styles.input, { flex: 1 }]}
               value={s.percentage}
@@ -551,30 +659,9 @@ function Step2({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
           </View>
         ))}
 
-        {pickerOpenIdx !== null && (
-          <ScrollView
-            style={styles.speciesDropdown}
-            nestedScrollEnabled
-            showsVerticalScrollIndicator={false}
-          >
-            {speciesTypes.map((sp) => (
-              <Pressable
-                key={sp}
-                style={styles.dropdownItem}
-                onPress={() => {
-                  updateSpecies(pickerOpenIdx, 'species', sp);
-                  setPickerOpenIdx(null);
-                }}
-              >
-                <Text style={styles.dropdownItemText}>{sp}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-
         <View style={styles.speciesActions}>
           <Pressable style={styles.addButton} onPress={addSpecies}>
-            <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
+            <Ionicons name="add" size={14} color={Colors.primary} />
             <Text style={styles.addButtonText}>Adauga specie</Text>
           </Pressable>
           {Math.abs(totalPercent - 100) > 0.01 && totalPercent > 0 && (
@@ -584,20 +671,109 @@ function Step2({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
           )}
         </View>
       </View>
+
+      {/* Starting price */}
+      <Field label="Pret de pornire (RON/m³)">
+        <TextInput
+          style={styles.input}
+          value={form.startingPricePerM3}
+          onChangeText={(t) => setForm({ ...form, startingPricePerM3: t })}
+          placeholder="ex: 185"
+          placeholderTextColor={Colors.textMuted}
+          keyboardType="decimal-pad"
+        />
+        {form.volumeM3 && form.startingPricePerM3 && (
+          <Text style={styles.helperText}>
+            Total proiectat: {formatEuro(parseFloat(form.volumeM3) * parseFloat(form.startingPricePerM3))}
+          </Text>
+        )}
+        {suggestedPrice && !form.startingPricePerM3 && (
+          <Pressable
+            style={styles.priceSuggestion}
+            onPress={() => setForm({ ...form, startingPricePerM3: String(suggestedPrice) })}
+          >
+            <Ionicons name="trending-up" size={13} color={Colors.primary} />
+            <Text style={styles.priceSuggestionText}>
+              Piata {form.region}: avg {Math.round((marketHint as any).avgPricePerM3)} RON/m³ · Sugestie: {suggestedPrice} RON
+            </Text>
+          </Pressable>
+        )}
+      </Field>
+
+      {/* GPS */}
+      <Field label="Coordonate GPS (optional)">
+        <View style={styles.gpsRow}>
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            value={form.gpsLat}
+            onChangeText={(t) => setForm({ ...form, gpsLat: t })}
+            placeholder="Latitudine"
+            placeholderTextColor={Colors.textMuted}
+            keyboardType="decimal-pad"
+          />
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            value={form.gpsLng}
+            onChangeText={(t) => setForm({ ...form, gpsLng: t })}
+            placeholder="Longitudine"
+            placeholderTextColor={Colors.textMuted}
+            keyboardType="decimal-pad"
+          />
+        </View>
+        <Pressable
+          style={styles.locationButton}
+          onPress={useCurrentLocation}
+          disabled={locating}
+        >
+          {locating ? (
+            <ActivityIndicator color={Colors.primary} size="small" />
+          ) : (
+            <>
+              <Ionicons name="location" size={16} color={Colors.primary} />
+              <Text style={styles.locationButtonText}>Foloseste locatia curenta</Text>
+            </>
+          )}
+        </Pressable>
+      </Field>
+
+      {/* Description */}
+      <Field label="Descriere (optional)">
+        <TextInput
+          style={[styles.input, styles.inputMulti]}
+          value={form.description}
+          onChangeText={(t) => setForm({ ...form, description: t })}
+          placeholder="Descriere detaliata a lotului: acces auto, calitate, alte informatii..."
+          placeholderTextColor={Colors.textMuted}
+          multiline
+          numberOfLines={4}
+        />
+        {form.description.length > 0 && form.description.length < 20 && (
+          <Text style={styles.errorText}>Minim 20 caractere ({form.description.length}/20)</Text>
+        )}
+      </Field>
+
+      {/* Support documents */}
+      <SupportDocs form={form} setForm={setForm} />
     </View>
   );
 }
 
 // =====================================================
-// STEP 3 — Schedule
+// STEP 3 — Schedule & Launch
 // =====================================================
-function Step3({ form, setForm }: { form: FormData; setForm: (f: FormData) => void }) {
-  const presets: { label: string; value: string; unit: 'minute' | 'ore' | 'zile' }[] = [
-    { label: '1 ora', value: '1', unit: 'ore' },
-    { label: '4 ore', value: '4', unit: 'ore' },
-    { label: '24 ore', value: '24', unit: 'ore' },
-    { label: '3 zile', value: '3', unit: 'zile' },
-    { label: '7 zile', value: '7', unit: 'zile' },
+function Step3({
+  form,
+  setForm,
+}: {
+  form: FormData;
+  setForm: (f: FormData) => void;
+}) {
+  const presets = [
+    { label: '1 ora', value: '1', unit: 'ore' as const },
+    { label: '6 ore', value: '6', unit: 'ore' as const },
+    { label: '24 ore', value: '24', unit: 'ore' as const },
+    { label: '3 zile', value: '3', unit: 'zile' as const },
+    { label: '7 zile', value: '7', unit: 'zile' as const },
   ];
 
   const startMs = parseInt(form.startInMinutes, 10) * 60 * 1000;
@@ -606,10 +782,14 @@ function Step3({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
     (form.durationUnit === 'minute' ? 60_000 : form.durationUnit === 'ore' ? 3_600_000 : 86_400_000);
   const endTime = new Date(Date.now() + startMs + durationMs);
 
+  const totalValue =
+    parseFloat(form.volumeM3 || '0') * parseFloat(form.startingPricePerM3 || '0');
+
   return (
     <View>
-      <Text style={styles.stepTitle}>Programare licitatie</Text>
-      <Text style={styles.stepSubtitle}>Cand incepe si cat dureaza</Text>
+      <Text style={styles.stepCounter}>Pasul 3 din {TOTAL_STEPS}</Text>
+      <Text style={styles.stepTitle}>Programare</Text>
+      <Text style={styles.stepSubtitle}>Cand incepe si cat dureaza licitatia</Text>
 
       <Field label="Incepe in (minute)">
         <TextInput
@@ -684,148 +864,35 @@ function Step3({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
           Licitatia se prelungeste automat cu 3 minute daca se plaseaza o oferta in ultimele 15 minute
         </Text>
       </View>
-    </View>
-  );
-}
 
-// =====================================================
-// STEP 4 — APV Document
-// =====================================================
-function Step4({ form, setForm }: { form: FormData; setForm: (f: FormData) => void }) {
-  const [extracting, setExtracting] = useState(false);
-
-  const pickFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ['application/pdf', 'image/jpeg', 'image/png'],
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const file = result.assets[0];
-    const docFile: DocumentFile = {
-      uri: file.uri,
-      name: file.name,
-      size: file.size ?? 0,
-      mimeType: file.mimeType ?? 'application/octet-stream',
-    };
-    setForm({ ...form, apvFile: docFile });
-    await runOcr(docFile);
-  };
-
-  const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permisiune', 'Avem nevoie de acces la camera');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    const docFile: DocumentFile = {
-      uri: asset.uri,
-      name: `apv_${Date.now()}.jpg`,
-      size: asset.fileSize ?? 0,
-      mimeType: 'image/jpeg',
-    };
-    setForm({ ...form, apvFile: docFile });
-    await runOcr(docFile);
-  };
-
-  const runOcr = async (file: DocumentFile) => {
-    if (!file.mimeType.startsWith('image/')) {
-      // PDFs are accepted for upload but can't be OCR-processed client-side
-      Alert.alert(
-        'PDF detectat',
-        'Extragerea automata a datelor functioneaza doar pe fotografii. Te rugam sa fotografiezi documentul APV cu camera pentru completare automata.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    setExtracting(true);
-    try {
-      const base64 = await FileSystem.readAsStringAsync(file.uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      const data = await extractApv(base64);
-      setForm({ ...form, apvFile: file, apvData: data });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (err: any) {
-      Alert.alert('OCR esuat', 'Poti completa manual datele in pasul urmator');
-    } finally {
-      setExtracting(false);
-    }
-  };
-
-  return (
-    <View>
-      <Text style={styles.stepTitle}>Document APV</Text>
-      <Text style={styles.stepSubtitle}>Permis de exploatare (optional)</Text>
-
-      {!form.apvFile ? (
-        <View style={styles.uploadOptions}>
-          <Pressable style={styles.uploadButton} onPress={takePhoto}>
-            <Ionicons name="camera" size={32} color={Colors.primary} />
-            <Text style={styles.uploadButtonText}>Fotografiaza APV</Text>
-          </Pressable>
-          <Pressable style={styles.uploadButton} onPress={pickFile}>
-            <Ionicons name="document" size={32} color={Colors.primary} />
-            <Text style={styles.uploadButtonText}>Incarca fisier</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={styles.uploadedCard}>
-          <Ionicons
-            name={form.apvFile.mimeType.includes('pdf') ? 'document-text' : 'image'}
-            size={32}
-            color={Colors.primary}
-          />
-          <View style={styles.uploadedInfo}>
-            <Text style={styles.uploadedName} numberOfLines={1}>{form.apvFile.name}</Text>
-            <Text style={styles.uploadedSize}>{(form.apvFile.size / 1024).toFixed(0)} KB</Text>
-          </View>
-          <Pressable
-            onPress={() => setForm({ ...form, apvFile: null, apvData: null })}
-            hitSlop={8}
-          >
-            <Ionicons name="close-circle" size={24} color={Colors.error} />
-          </Pressable>
-        </View>
-      )}
-
-      {extracting && (
-        <View style={styles.extractingBox}>
-          <ActivityIndicator color={Colors.primary} />
-          <Text style={styles.extractingText}>Extragem date din APV...</Text>
-        </View>
-      )}
-
-      {form.apvData && (
-        <View style={styles.apvDataCard}>
-          <Text style={styles.apvDataTitle}>Date extrase</Text>
-          {Object.entries(form.apvData).slice(0, 8).map(([k, v]) => (
-            <View key={k} style={styles.apvDataRow}>
-              <Text style={styles.apvDataKey}>{k}</Text>
-              <Text style={styles.apvDataValue} numberOfLines={1}>{String(v)}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <View style={styles.infoBox}>
-        <Ionicons name="information-circle" size={16} color={Colors.info} />
-        <Text style={styles.infoBoxText}>
-          Acest pas este optional. Poti continua si fara document APV.
-        </Text>
+      {/* Summary recap */}
+      <View style={[styles.summaryCard, { marginTop: 16 }]}>
+        <Text style={styles.summaryCardTitle}>Rezumat lot</Text>
+        <SummaryRow label="Titlu" value={form.title} />
+        <SummaryRow label="Județ" value={form.region} />
+        <SummaryRow label="Volum" value={`${form.volumeM3} m³`} />
+        <SummaryRow label="Pret pornire" value={`${form.startingPricePerM3} RON/m³`} />
+        {totalValue > 0 && (
+          <SummaryRow label="Valoare proiectata" value={formatEuro(totalValue)} highlight />
+        )}
+        {form.apvData?.permitNumber && (
+          <SummaryRow label="APV" value={String(form.apvData.permitNumber)} />
+        )}
       </View>
     </View>
   );
 }
 
 // =====================================================
-// STEP 5 — Support Documents
+// Support documents (reusable section in Step 2)
 // =====================================================
-function Step5({ form, setForm }: { form: FormData; setForm: (f: FormData) => void }) {
+function SupportDocs({
+  form,
+  setForm,
+}: {
+  form: FormData;
+  setForm: (f: FormData) => void;
+}) {
   const pickFiles = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: ['application/pdf', 'image/*'],
@@ -842,22 +909,15 @@ function Step5({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
   };
 
   const removeDoc = (idx: number) => {
-    setForm({
-      ...form,
-      documents: form.documents.filter((_, i) => i !== idx),
-    });
+    setForm({ ...form, documents: form.documents.filter((_, i) => i !== idx) });
   };
 
   return (
-    <View>
-      <Text style={styles.stepTitle}>Documente suport</Text>
-      <Text style={styles.stepSubtitle}>Rapoarte, fotografii, harti (optional)</Text>
-
+    <Field label="Documente suport (optional)">
       <Pressable style={styles.uploadFullButton} onPress={pickFiles}>
         <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
         <Text style={styles.uploadFullText}>Adauga documente</Text>
       </Pressable>
-
       {form.documents.map((doc, idx) => (
         <View key={idx} style={styles.docRow}>
           <Ionicons
@@ -874,96 +934,31 @@ function Step5({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
           </Pressable>
         </View>
       ))}
-
-      {form.documents.length === 0 && (
-        <Text style={styles.emptyHint}>Niciun document adaugat</Text>
-      )}
-    </View>
-  );
-}
-
-// =====================================================
-// STEP 6 — Review & Publish
-// =====================================================
-function Step6({ form }: { form: FormData }) {
-  const totalValue =
-    parseFloat(form.volumeM3 || '0') * parseFloat(form.startingPricePerM3 || '0');
-
-  const sortedSpecies = [...form.speciesBreakdown].sort(
-    (a, b) => parseFloat(b.percentage) - parseFloat(a.percentage)
-  );
-
-  return (
-    <View>
-      <Text style={styles.stepTitle}>Verificare</Text>
-      <Text style={styles.stepSubtitle}>Verifica detaliile si publica</Text>
-
-      {/* Basic info */}
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryCardTitle}>Informatii de baza</Text>
-        <SummaryRow label="Titlu" value={form.title} />
-        <SummaryRow label="Județ" value={form.region} />
-        <SummaryRow label="Locatie" value={form.location} />
-        {form.gpsLat && form.gpsLng && (
-          <SummaryRow label="GPS" value={`${form.gpsLat}, ${form.gpsLng}`} />
-        )}
-      </View>
-
-      {/* Timber details */}
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryCardTitle}>Detalii lemn</Text>
-        <SummaryRow label="Volum" value={`${form.volumeM3} m³`} />
-        <SummaryRow label="Pret pornire" value={`${form.startingPricePerM3} RON/m³`} />
-        <SummaryRow
-          label="Valoare proiectata"
-          value={formatEuro(totalValue)}
-          highlight
-        />
-        <View style={{ marginTop: 8 }}>
-          <Text style={styles.summarySubLabel}>Specii</Text>
-          {sortedSpecies.map((s, i) => (
-            <Text key={i} style={styles.summarySpecies}>
-              {s.species}: {parseFloat(s.percentage).toFixed(1)}%
-            </Text>
-          ))}
-        </View>
-      </View>
-
-      {/* Schedule */}
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryCardTitle}>Programare</Text>
-        <SummaryRow label="Incepe in" value={`${form.startInMinutes} min`} />
-        <SummaryRow label="Durata" value={`${form.durationValue} ${form.durationUnit}`} />
-      </View>
-
-      {/* APV */}
-      {form.apvFile && (
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryCardTitle}>Document APV</Text>
-          <SummaryRow label="Fisier" value={form.apvFile.name} />
-          {form.apvData && (
-            <SummaryRow label="OCR" value="Date extrase cu succes" highlight />
-          )}
-        </View>
-      )}
-
-      {/* Documents */}
-      {form.documents.length > 0 && (
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryCardTitle}>Documente suport</Text>
-          <Text style={styles.summarySubLabel}>{form.documents.length} fisiere</Text>
-        </View>
-      )}
-    </View>
+    </Field>
   );
 }
 
 // --- Shared sub-components ---
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  apvFilled,
+}: {
+  label: string;
+  children: React.ReactNode;
+  apvFilled?: boolean;
+}) {
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.fieldLabelRow}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        {apvFilled && (
+          <View style={styles.apvBadge}>
+            <Text style={styles.apvBadgeText}>· APV</Text>
+          </View>
+        )}
+      </View>
       {children}
     </View>
   );
@@ -1036,11 +1031,27 @@ const styles = StyleSheet.create({
   field: {
     marginBottom: 20,
   },
+  fieldLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
   fieldLabel: {
     fontSize: 13,
     fontWeight: '600',
     color: Colors.textStrong,
-    marginBottom: 6,
+  },
+  apvBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+  },
+  apvBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.success,
   },
   input: {
     height: 48,
@@ -1067,46 +1078,23 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 6,
   },
-  // Dropdown
-  dropdown: {
-    height: 48,
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 16,
+  priceSuggestion: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  dropdownText: {
-    fontSize: 15,
-    color: Colors.text,
-  },
-  placeholderText: {
-    color: Colors.textMuted,
-  },
-  dropdownMenu: {
-    marginTop: 4,
-    backgroundColor: Colors.surface,
-    borderRadius: 10,
+    gap: 5,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: Colors.primarySoft,
     borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
+    borderColor: Colors.primaryBorder,
   },
-  dropdownItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
-  },
-  dropdownItemText: {
-    fontSize: 15,
-    color: Colors.text,
-  },
-  dropdownItemSelected: {
-    color: Colors.primary,
+  priceSuggestionText: {
+    fontSize: 12,
     fontWeight: '600',
+    color: Colors.primary,
+    flex: 1,
   },
   // GPS
   gpsRow: {
@@ -1132,8 +1120,7 @@ const styles = StyleSheet.create({
   },
   // Species section
   speciesSection: {
-    marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   speciesSectionHeader: {
     flexDirection: 'row',
@@ -1167,34 +1154,11 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  speciesPicker: {
-    height: 48,
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  speciesPickerText: {
-    fontSize: 13,
-    color: Colors.text,
-  },
   removeButton: {
     width: 24,
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  speciesDropdown: {
-    maxHeight: 240,
-    backgroundColor: Colors.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginTop: 4,
   },
   speciesActions: {
     flexDirection: 'row',
@@ -1316,11 +1280,28 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 16,
   },
-  // Step 4 — APV
+  // Step 1 — APV scan
+  scanningBox: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    gap: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+  },
+  scanningTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  scanningSubtitle: {
+    fontSize: 13,
+    color: Colors.textMuted,
+  },
   uploadOptions: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 8,
   },
   uploadButton: {
     flex: 1,
@@ -1339,55 +1320,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.primary,
   },
-  uploadedCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
+  apvSuccessCard: {
+    padding: 16,
+    backgroundColor: 'rgba(34,197,94,0.06)',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.primaryBorder,
+    borderColor: 'rgba(34,197,94,0.25)',
   },
-  uploadedInfo: {
-    flex: 1,
-  },
-  uploadedName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  uploadedSize: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
-  extractingBox: {
+  apvSuccessHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    padding: 12,
-    backgroundColor: Colors.surface,
-    borderRadius: 10,
-    marginTop: 12,
+    marginBottom: 12,
   },
-  extractingText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
-  apvDataCard: {
-    marginTop: 12,
-    padding: 14,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  apvDataTitle: {
-    fontSize: 13,
+  apvSuccessTitle: {
+    flex: 1,
+    fontSize: 15,
     fontWeight: '700',
-    color: Colors.primary,
-    marginBottom: 8,
+    color: Colors.success,
   },
   apvDataRow: {
     flexDirection: 'row',
@@ -1396,18 +1346,23 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   apvDataKey: {
-    fontSize: 11,
+    fontSize: 12,
     color: Colors.textMuted,
-    flex: 1,
   },
   apvDataValue: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.text,
-    flex: 1,
     textAlign: 'right',
+    flex: 1,
   },
-  // Step 5 — Documents
+  apvSuccessHint: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 10,
+    fontStyle: 'italic',
+  },
+  // Documents
   uploadFullButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1419,7 +1374,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderStyle: 'dashed',
     borderColor: Colors.primaryBorder,
-    marginTop: 8,
   },
   uploadFullText: {
     fontSize: 13,
@@ -1450,13 +1404,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: 2,
   },
-  emptyHint: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: 24,
-  },
-  // Step 6 — Summary
+  // Summary
   summaryCard: {
     backgroundColor: Colors.surface,
     borderRadius: 12,
@@ -1491,19 +1439,6 @@ const styles = StyleSheet.create({
   },
   summaryValueHighlight: {
     color: Colors.primary,
-  },
-  summarySubLabel: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    marginBottom: 4,
-    marginTop: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  summarySpecies: {
-    fontSize: 13,
-    color: Colors.text,
-    marginVertical: 2,
   },
   // Action bar
   actionBar: {
