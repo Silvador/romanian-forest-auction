@@ -73,9 +73,13 @@ export function serveStatic(app: Express) {
   const distPath = path.resolve(import.meta.dirname, "public");
 
   if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+    // No client build present (e.g. API-only deployment on Railway).
+    // Log a warning and continue — the API and healthcheck still work.
+    console.warn(
+      `[Static] Client build not found at ${distPath} — serving API only. ` +
+      `Run 'npm run build' to include the web client.`
     );
+    return;
   }
 
   app.use(express.static(distPath));
