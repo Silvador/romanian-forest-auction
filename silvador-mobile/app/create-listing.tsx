@@ -340,7 +340,8 @@ function Step1({
       const base64 = await FileSystem.readAsStringAsync(file.uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      const data = await extractApv(base64, file.mimeType);
+      const dataUrl = `data:${file.mimeType};base64,${base64}`;
+      const data = await extractApv(dataUrl, file.mimeType);
 
       // Build pre-filled form values from OCR
       const apvSpecies = (data as any).speciesBreakdown?.map((s: any) => ({
