@@ -1141,31 +1141,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const decodedToken = await admin.auth().verifyIdToken(token);
       const userId = decodedToken.uid;
 
-      const cursor = req.query.cursor as string | undefined;
-      let query = db.collection("notifications")
+      // Fetch without orderBy to avoid requiring a composite Firestore index.
+      // Single-field where() is auto-indexed; multi-field where+orderBy is not.
+      const snapshot = await db.collection("notifications")
         .where("userId", "==", userId)
-        .orderBy("timestamp", "desc")
-        .limit(50);
+        .limit(100)
+        .get();
 
-      if (cursor) {
-        const cursorDoc = await db.collection("notifications").doc(cursor).get();
-        if (cursorDoc.exists) {
-          query = query.startAfter(cursorDoc);
-        }
-      }
+      const notifications = snapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          const timestamp = data.timestamp instanceof admin.firestore.Timestamp
+            ? data.timestamp.toMillis()
+            : (typeof data.timestamp === 'number' ? data.timestamp : 0);
+          return { id: doc.id, ...data, timestamp };
+        })
+        .sort((a, b) => (b.timestamp as number) - (a.timestamp as number));
 
-      const snapshot = await query.get();
-
-      const notifications = snapshot.docs.map(doc => {
-        const data = doc.data();
-        const timestamp = data.timestamp instanceof admin.firestore.Timestamp
-          ? data.timestamp.toMillis()
-          : (typeof data.timestamp === 'number' ? data.timestamp : 0);
-        return { id: doc.id, ...data, timestamp };
-      });
-
-      const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-      res.json({ notifications, nextCursor: lastDoc?.id ?? null });
+      res.json({ notifications, nextCursor: null });
     } catch (error: any) {
       console.error("Error fetching notifications:", error);
       res.status(500).json({ error: "Eroare la incarcarea notificarilor" });
