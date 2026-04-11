@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
+
 import * as FileSystem from 'expo-file-system/legacy';
 import { Colors } from '../constants/colors';
 import { regions } from '../constants/regions';
@@ -45,8 +45,6 @@ interface FormData {
   description: string;
   region: string;
   location: string;
-  gpsLat: string;
-  gpsLng: string;
   volumeM3: string;
   startingPricePerM3: string;
   speciesBreakdown: { species: string; percentage: string }[];
@@ -63,8 +61,6 @@ const INITIAL_FORM: FormData = {
   description: '',
   region: '',
   location: '',
-  gpsLat: '',
-  gpsLng: '',
   volumeM3: '',
   startingPricePerM3: '',
   speciesBreakdown: [{ species: '', percentage: '100' }],
@@ -176,13 +172,6 @@ export default function CreateListingScreen() {
       startTime,
       endTime: startTime + durationMs,
     };
-
-    if (form.gpsLat && form.gpsLng) {
-      payload.gpsCoordinates = {
-        lat: parseFloat(form.gpsLat),
-        lng: parseFloat(form.gpsLng),
-      };
-    }
 
     if (form.apvData) {
       const apv = form.apvData;
@@ -560,8 +549,7 @@ function Step2({
   form: FormData;
   setForm: (f: FormData) => void;
 }) {
-  const [locating, setLocating] = useState(false);
-  const { data: marketData } = useMarketAnalytics('30d');
+const { data: marketData } = useMarketAnalytics('30d');
 
   const hasApvData = !!form.apvData;
 
@@ -578,26 +566,6 @@ function Step2({
     ? Math.round((marketHint as any).avgPricePerM3 * 0.9)
     : null;
 
-  const useCurrentLocation = async () => {
-    setLocating(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permisiune', 'Avem nevoie de acces la locatie');
-        return;
-      }
-      const loc = await Location.getCurrentPositionAsync({});
-      setForm({
-        ...form,
-        gpsLat: loc.coords.latitude.toFixed(6),
-        gpsLng: loc.coords.longitude.toFixed(6),
-      });
-    } catch {
-      Alert.alert('Eroare', 'Nu s-a putut obtine locatia');
-    } finally {
-      setLocating(false);
-    }
-  };
 
   const addSpecies = () => {
     setForm({
@@ -781,41 +749,7 @@ function Step2({
         )}
       </Field>
 
-      {/* GPS */}
-      <Field label="Coordonate GPS (optional)">
-        <View style={styles.gpsRow}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            value={form.gpsLat}
-            onChangeText={(t) => setForm({ ...form, gpsLat: t })}
-            placeholder="Latitudine"
-            placeholderTextColor={Colors.textMuted}
-            keyboardType="decimal-pad"
-          />
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            value={form.gpsLng}
-            onChangeText={(t) => setForm({ ...form, gpsLng: t })}
-            placeholder="Longitudine"
-            placeholderTextColor={Colors.textMuted}
-            keyboardType="decimal-pad"
-          />
-        </View>
-        <Pressable
-          style={styles.locationButton}
-          onPress={useCurrentLocation}
-          disabled={locating}
-        >
-          {locating ? (
-            <ActivityIndicator color={Colors.primary} size="small" />
-          ) : (
-            <>
-              <Ionicons name="location" size={16} color={Colors.primary} />
-              <Text style={styles.locationButtonText}>Foloseste locatia curenta</Text>
-            </>
-          )}
-        </Pressable>
-      </Field>
+      {/* GPS — hidden until APV location extraction is implemented */}
 
       {/* Description */}
       <Field label="Descriere (optional)">
@@ -1176,28 +1110,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.primary,
     flex: 1,
-  },
-  // GPS
-  gpsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  locationButton: {
-    marginTop: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: Colors.primarySoft,
-    borderWidth: 1,
-    borderColor: Colors.primaryBorder,
-  },
-  locationButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.primary,
   },
   // Species section
   speciesSection: {
