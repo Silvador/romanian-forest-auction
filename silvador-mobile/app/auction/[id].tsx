@@ -132,10 +132,14 @@ export default function AuctionDetailScreen() {
     } catch {}
   };
 
+  // gpsCoordinates is set by the resolver on new auctions.
+  // publicApvPoint is the legacy field written before the gpsCoordinates fix — use as fallback.
+  const displayCoords: { lat: number; lng: number } | null =
+    auction.gpsCoordinates ?? (auction as any).publicApvPoint ?? null;
+
   const openMaps = () => {
-    if (!auction.gpsCoordinates) return;
-    const { lat, lng } = auction.gpsCoordinates;
-    Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`);
+    if (!displayCoords) return;
+    Linking.openURL(`https://maps.google.com/?q=${displayCoords.lat},${displayCoords.lng}`);
   };
 
   return (
@@ -378,20 +382,30 @@ function DetailsTab({
       {/* Location */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Locatie</Text>
-        <Pressable
-          style={styles.locationCard}
-          onPress={auction.gpsCoordinates ? onOpenMaps : undefined}
-          disabled={!auction.gpsCoordinates}
-        >
+        <View style={styles.locationCard}>
           <Ionicons name="location-outline" size={18} color={Colors.primary} />
           <View style={styles.locationInfo}>
             <Text style={styles.locationText}>{auction.location}</Text>
             <Text style={styles.locationRegion}>{auction.region}</Text>
+            {(auction.apvUpLocation || auction.apvUaLocation) && (
+              <Text style={styles.locationApv}>
+                {[auction.apvUpLocation && `UP ${auction.apvUpLocation}`, auction.apvUaLocation && `UA ${auction.apvUaLocation}`].filter(Boolean).join(' · ')}
+              </Text>
+            )}
           </View>
-          {auction.gpsCoordinates && (
-            <Ionicons name="open-outline" size={16} color={Colors.textMuted} />
+          {displayCoords && (
+            <View style={styles.locationVerifiedBadge}>
+              <Ionicons name="checkmark-circle" size={12} color={Colors.success} />
+              <Text style={styles.locationVerifiedText}>GPS</Text>
+            </View>
           )}
-        </Pressable>
+        </View>
+        {displayCoords && (
+          <Pressable style={styles.mapsButton} onPress={onOpenMaps}>
+            <Ionicons name="navigate-outline" size={16} color={Colors.bg} />
+            <Text style={styles.mapsButtonText}>Deschide în Google Maps</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Owner */}
@@ -1135,6 +1149,43 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textMuted,
     marginTop: 2,
+  },
+  locationApv: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  locationVerifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: 'rgba(34,197,94,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.25)',
+  },
+  locationVerifiedText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.success,
+  },
+  mapsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+  },
+  mapsButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.bg,
   },
   ownerCard: {
     flexDirection: 'row',

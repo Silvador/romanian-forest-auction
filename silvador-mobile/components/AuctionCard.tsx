@@ -83,10 +83,14 @@ function AuctionCardImpl({
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
       >
-        {/* Header row: status dot + location + bookmark */}
+        {/* Header row: status dot + location + (GPS pin if verified) + bookmark */}
         <View style={styles.headerRow}>
           <View style={styles.locationRow}>
             <LiveDot color={statusDotColor} size={8} pulse={isActive} />
+            {auction.gpsCoordinates
+              ? <Ionicons name="location" size={11} color={Colors.info} style={styles.gpsDot} />
+              : null
+            }
             <Text style={styles.location} numberOfLines={1}>
               {auction.location}, {auction.region}
             </Text>
@@ -286,6 +290,7 @@ export const AuctionCard = memo(AuctionCardImpl, (prev, next) => {
     prev.auction.status === next.auction.status &&
     prev.auction.endTime === next.auction.endTime &&
     prev.auction.currentBidderId === next.auction.currentBidderId &&
+    prev.auction.gpsCoordinates === next.auction.gpsCoordinates &&
     prev.isWatchlisted === next.isWatchlisted &&
     prev.isOutbid === next.isOutbid &&
     prev.currentUserId === next.currentUserId &&
@@ -326,6 +331,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: Colors.textSecondary,
     flex: 1,
+  },
+  gpsDot: {
+    marginRight: -2,  // tighten gap between pin and text
   },
   watchlistBtn: {
     width: 32,

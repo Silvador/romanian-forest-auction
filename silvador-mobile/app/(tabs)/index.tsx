@@ -130,10 +130,10 @@ export default function AuctionFeedScreen() {
       const q = searchText.toLowerCase();
       list = list.filter(
         (a) =>
-          a.title.toLowerCase().includes(q) ||
-          a.location.toLowerCase().includes(q) ||
-          a.region.toLowerCase().includes(q) ||
-          (a.speciesBreakdown ?? []).some((s) => s.species.toLowerCase().includes(q))
+          (a.title ?? '').toLowerCase().includes(q) ||
+          (a.location ?? '').toLowerCase().includes(q) ||
+          (a.region ?? '').toLowerCase().includes(q) ||
+          (a.speciesBreakdown ?? []).some((s) => (s.species ?? '').toLowerCase().includes(q))
       );
     }
 

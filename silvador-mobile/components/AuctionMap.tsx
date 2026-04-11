@@ -29,16 +29,20 @@ export function AuctionMap({ auctions }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Auction | null>(null);
 
+  // gpsCoordinates is set on new auctions; publicApvPoint is the legacy fallback field
+  const getCoords = (a: Auction) =>
+    a.gpsCoordinates ?? (a as any).publicApvPoint ?? null;
+
   const auctionsWithGps = useMemo(
-    () => auctions.filter((a) => a.gpsCoordinates?.lat && a.gpsCoordinates?.lng),
+    () => auctions.filter((a) => getCoords(a) !== null),
     [auctions]
   );
 
   // Compute initial region based on auctions, fallback to Romania
   const initialRegion = useMemo<Region>(() => {
     if (auctionsWithGps.length === 0) return ROMANIA_REGION;
-    const lats = auctionsWithGps.map((a) => a.gpsCoordinates!.lat);
-    const lngs = auctionsWithGps.map((a) => a.gpsCoordinates!.lng);
+    const lats = auctionsWithGps.map((a) => getCoords(a)!.lat);
+    const lngs = auctionsWithGps.map((a) => getCoords(a)!.lng);
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
     const minLng = Math.min(...lngs);
@@ -76,8 +80,8 @@ export function AuctionMap({ auctions }: Props) {
           <Marker
             key={auction.id}
             coordinate={{
-              latitude: auction.gpsCoordinates!.lat,
-              longitude: auction.gpsCoordinates!.lng,
+              latitude: getCoords(auction)!.lat,
+              longitude: getCoords(auction)!.lng,
             }}
             pinColor={statusColor(auction.status)}
             onPress={() => setSelected(auction)}
