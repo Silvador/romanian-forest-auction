@@ -16,7 +16,7 @@ import Constants from 'expo-constants';
 import { Colors } from '../../constants/colors';
 import { useAuthContext } from '../../lib/AuthContext';
 import { logout } from '../../lib/auth';
-import { usePreferences, type LanguagePreference } from '../../hooks/usePreferences';
+import { usePreferences } from '../../hooks/usePreferences';
 import { EditNameModal } from '../../components/EditNameModal';
 import { ChangePasswordModal } from '../../components/ChangePasswordModal';
 import type { KycStatus } from '../../types';
@@ -133,28 +133,6 @@ export default function ProfileScreen() {
             />
           </View>
 
-          <View style={styles.optionGroup}>
-            <View style={styles.optionGroupHeader}>
-              <Ionicons name="language-outline" size={20} color={Colors.textSecondary} />
-              <Text style={styles.toggleLabel}>Limba</Text>
-            </View>
-            <View style={styles.segmentedControl}>
-              {(['ro', 'en'] as LanguagePreference[]).map((l) => (
-                <Pressable
-                  key={l}
-                  style={[styles.segment, prefs.language === l && styles.segmentActive]}
-                  onPress={() => prefs.setLanguage(l)}
-                >
-                  <Text style={[
-                    styles.segmentText,
-                    prefs.language === l && styles.segmentTextActive,
-                  ]}>
-                    {l === 'ro' ? 'Romana' : 'English'}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
         </SettingsSection>
 
         {/* App info section */}
@@ -551,41 +529,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: Colors.text,
-  },
-  // Option group (with segmented control)
-  optionGroup: {
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
-  },
-  optionGroupHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 10,
-  },
-  segmentedControl: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 8,
-    padding: 2,
-  },
-  segment: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 6,
-  },
-  segmentActive: {
-    backgroundColor: Colors.primary,
-  },
-  segmentText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  segmentTextActive: {
-    color: Colors.bg,
   },
   // Logout
   logoutButton: {
