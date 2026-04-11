@@ -22,6 +22,53 @@ import {
   getAuctionPrice,
 } from "./utils/analyticsHelpers";
 import { initializeWebSocket, setIO, getIO } from "./websocket";
+import { speciesTypes } from "@shared/schema";
+
+// Normalize species names coming from OCR/mobile before Zod validation.
+// Handles: suffix codes like "(S)"/"(L)", abbreviations, and common OCR variants.
+const SPECIES_NORMALIZATION: Record<string, string> = {
+  // Cireș variants
+  "CIREȘ": "Cireș sălbatic",
+  "CIRES": "Cireș sălbatic",
+  "CIREȘ SĂLBATIC": "Cireș sălbatic",
+  "CIRES SALBATIC": "Cireș sălbatic",
+  // Mojdrean = Fraxinus ornus (flowering ash) — closest enum is Frasin
+  "MOJDREAN": "Frasin",
+  // Scoruș / Sorb
+  "SCORUȘ": "Sorb de munte",
+  "SCORUS": "Sorb de munte",
+  "SCORUȘ DE MUNTE": "Sorb de munte",
+  "SORB": "Sorb de munte",
+};
+
+const validSpeciesSet = new Set<string>(speciesTypes as unknown as string[]);
+
+function normalizeSpeciesForBody(species: string): string {
+  const upper = species.toUpperCase().trim();
+  // Strip silvicultural suffix codes: (S), (L), (I), (T), etc.
+  const stripped = upper.replace(/\s*\([A-Z]\)\s*$/, '').trim();
+  // Check direct map first (with suffix stripped)
+  if (SPECIES_NORMALIZATION[stripped]) return SPECIES_NORMALIZATION[stripped];
+  if (SPECIES_NORMALIZATION[upper]) return SPECIES_NORMALIZATION[upper];
+  // Find a case-insensitive match in the valid enum
+  for (const valid of speciesTypes) {
+    if (valid.toUpperCase() === stripped) return valid;
+    if (valid.toUpperCase() === upper) return valid;
+  }
+  // Unknown species — fall back to "Altele"
+  return "Altele";
+}
+
+function normalizeBodySpecies(body: any): any {
+  if (!body?.speciesBreakdown || !Array.isArray(body.speciesBreakdown)) return body;
+  return {
+    ...body,
+    speciesBreakdown: body.speciesBreakdown.map((item: any) => {
+      if (!item?.species || validSpeciesSet.has(item.species)) return item;
+      return { ...item, species: normalizeSpeciesForBody(item.species) };
+    }),
+  };
+}
 
 // Initialize Firebase Admin (optional for MVP - client SDK handles most operations)
 // Server-side Firebase Admin is not required for this MVP as all operations
@@ -172,7 +219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate and update with full data
-      const parseResult = insertAuctionSchema.safeParse(req.body);
+      const parseResult = insertAuctionSchema.safeParse(normalizeBodySpecies(req.body));
       if (!parseResult.success) {
         console.error('[AUCTION-UPDATE] Zod validation failed:', JSON.stringify(parseResult.error.issues, null, 2));
         return res.status(400).json(parseResult.error.issues);
@@ -248,7 +295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate request body
-      const parseResult = insertAuctionSchema.safeParse(req.body);
+      const parseResult = insertAuctionSchema.safeParse(normalizeBodySpecies(req.body));
       if (!parseResult.success) {
         console.error('[AUCTION-CREATE] Zod validation failed:', JSON.stringify(parseResult.error.issues, null, 2));
         return res.status(400).json(parseResult.error.issues);

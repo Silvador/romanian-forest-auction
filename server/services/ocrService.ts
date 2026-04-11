@@ -118,7 +118,12 @@ const speciesMapping: Record<string, string> = {
 
   // Fruit trees
   "CIRES": "Cireș sălbatic",
+  "CIREȘ": "Cireș sălbatic",
   "CIRESUL": "Cireș sălbatic",
+  "CIREȘUL": "Cireș sălbatic",
+  // Mojdrean = Fraxinus ornus (flowering ash)
+  "MOJDREAN": "Frasin",
+  "MOJDREANU": "Frasin",
   "CIREŞ SĂLBATIC": "Cireș sălbatic",
   "MAR": "Măr sălbatic",
   "MĂR SĂLBATIC": "Măr sălbatic",
