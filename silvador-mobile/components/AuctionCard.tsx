@@ -19,6 +19,8 @@ interface Props {
   canBid?: boolean;
   onToggleWatchlist?: (auctionId: string) => void;
   onQuickBid?: (auction: Auction) => void;
+  /** Source tab identifier passed to auction detail for back navigation (e.g. 'dashboard') */
+  from?: string;
 }
 
 function AuctionCardImpl({
@@ -29,6 +31,7 @@ function AuctionCardImpl({
   canBid = true,
   onToggleWatchlist,
   onQuickBid,
+  from,
 }: Props) {
   const router = useRouter();
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -56,7 +59,11 @@ function AuctionCardImpl({
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(`/auction/${auction.id}`);
+    if (from) {
+      router.push({ pathname: '/auction/[id]', params: { id: auction.id, from } });
+    } else {
+      router.push(`/auction/${auction.id}`);
+    }
   };
 
   const handleWatchlist = () => {

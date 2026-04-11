@@ -269,7 +269,7 @@ function BidStatusCard({
   return (
     <Pressable
       style={[styles.bidCard, !isLeading && styles.bidCardOutbid]}
-      onPress={() => router.push(`/auction/${auction.id}`)}
+      onPress={() => router.push({ pathname: '/auction/[id]', params: { id: auction.id, from: 'dashboard' } })}
     >
       <View style={styles.bidHeader}>
         <View style={{ flex: 1 }}>
@@ -381,6 +381,7 @@ function WatchlistTab({
           currentUserId={currentUserId}
           isWatchlisted={watchlistIds.has(auction.id)}
           canBid
+          from="dashboard"
           onToggleWatchlist={onToggleWatchlist}
           onQuickBid={onQuickBid}
         />

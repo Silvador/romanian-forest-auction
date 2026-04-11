@@ -40,7 +40,7 @@ function getSpeciesColor(species: string): string {
 }
 
 export default function AuctionDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const router = useRouter();
   const { user, isBuyer } = useAuthContext();
   const [tab, setTab] = useState<DetailTab>('detalii');
@@ -146,7 +146,7 @@ export default function AuctionDetailScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header — back arrow + inline title + actions + status pill */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} hitSlop={8} style={styles.iconButton}>
+        <Pressable onPress={() => from ? router.replace(`/(tabs)/${from}` as any) : router.canGoBack() ? router.back() : router.replace('/(tabs)')} hitSlop={8} style={styles.iconButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
