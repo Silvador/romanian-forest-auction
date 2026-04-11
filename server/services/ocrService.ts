@@ -245,6 +245,14 @@ function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvEx
     return parseFloat(str) || 0;
   };
 
+  // Safe integer parse — returns undefined (not NaN) for unparseable values.
+  // NaN gets serialized as null in JSON, which breaks z.number().optional() on the server.
+  const safeInt = (value: any): number | undefined => {
+    if (value == null) return undefined;
+    const n = parseInt(String(value));
+    return isNaN(n) ? undefined : n;
+  };
+
   const normalizeSpeciesName = (species: string): string => {
     const upperSpecies = species.toUpperCase();
     return speciesMapping[upperSpecies] || species;
@@ -281,7 +289,7 @@ function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvEx
   const surfaceHa = normalizeNumber(extracted.surfaceHa) || undefined;
   const firewoodVolume = normalizeNumber(extracted.firewoodVolume) || undefined;
   const barkVolume = normalizeNumber(extracted.barkVolume) || undefined;
-  const numberOfTrees = extracted.numberOfTrees ? parseInt(String(extracted.numberOfTrees)) : undefined;
+  const numberOfTrees = safeInt(extracted.numberOfTrees);
   const averageHeight = normalizeNumber(extracted.averageHeight) || undefined;
   const averageDiameter = normalizeNumber(extracted.averageDiameter) || undefined;
 
@@ -322,9 +330,9 @@ function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvEx
           dcg_cm: entry.dcg_cm != null ? normalizeNumber(entry.dcg_cm) : undefined,
           ht_m: entry.ht_m != null ? normalizeNumber(entry.ht_m) : undefined,
           hc_m: entry.hc_m != null ? normalizeNumber(entry.hc_m) : undefined,
-          age_years: entry.age_years != null ? parseInt(String(entry.age_years)) : undefined,
+          age_years: safeInt(entry.age_years),
           volPerTree_m3: entry.volPerTree_m3 != null ? normalizeNumber(entry.volPerTree_m3) : undefined,
-          treeCount: entry.treeCount != null ? parseInt(String(entry.treeCount)) : undefined,
+          treeCount: safeInt(entry.treeCount),
         };
         return acc;
       }, {} as Record<string, DendrometryEntry>)
@@ -348,7 +356,7 @@ function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvEx
     treatmentType: extracted.treatmentType || undefined,
     productType: extracted.productType || undefined,
     extractionMethod: extracted.extractionMethod || undefined,
-    harvestYear: extracted.harvestYear ? parseInt(String(extracted.harvestYear)) : undefined,
+    harvestYear: safeInt(extracted.harvestYear),
     inventoryMethod: extracted.inventoryMethod || undefined,
     hammerMark: extracted.hammerMark || undefined,
     accessibility: extracted.accessibility || undefined,
@@ -357,8 +365,8 @@ function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvEx
     numberOfTrees,
     averageHeight,
     averageDiameter,
-    averageAge: extracted.averageAge ? parseInt(String(extracted.averageAge)) : undefined,
-    slopePercent: extracted.slopePercent ? parseInt(String(extracted.slopePercent)) : undefined,
+    averageAge: safeInt(extracted.averageAge),
+    slopePercent: safeInt(extracted.slopePercent),
     sortVolumes,
     dimensionalSorting: extracted.dimensionalSorting || undefined,
     speciesBreakdown,
@@ -367,9 +375,9 @@ function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvEx
     rawText,
     sortVolumesPerSpecies,
     dendrometryPerSpecies,
-    rottenTreesCount: extracted.rottenTreesCount ? parseInt(String(extracted.rottenTreesCount)) : undefined,
+    rottenTreesCount: safeInt(extracted.rottenTreesCount),
     rottenTreesVolume: extracted.rottenTreesVolume ? normalizeNumber(extracted.rottenTreesVolume) : undefined,
-    dryTreesCount: extracted.dryTreesCount ? parseInt(String(extracted.dryTreesCount)) : undefined,
+    dryTreesCount: safeInt(extracted.dryTreesCount),
     dryTreesVolume: extracted.dryTreesVolume ? normalizeNumber(extracted.dryTreesVolume) : undefined,
     exploitationDeadline: extracted.exploitationDeadline ? String(extracted.exploitationDeadline) : undefined,
   };
