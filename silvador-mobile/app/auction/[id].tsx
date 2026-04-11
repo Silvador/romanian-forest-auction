@@ -526,32 +526,42 @@ function BidsTab({ bids, currentUserId }: { bids: any[]; currentUserId?: string 
 function ForestTab({ auction }: { auction: Auction }) {
   const sorted = [...auction.speciesBreakdown].sort((a, b) => b.percentage - a.percentage);
   const totalVolume = auction.volumeM3;
+  const dendrometry = auction.apvDendrometryPerSpecies;
+  const sortVolumes = auction.apvSortVolumes;
 
   return (
     <View style={styles.tabContent}>
+      {/* Species composition table */}
       <Text style={styles.sectionLabel}>Compozitie specii</Text>
       <View style={styles.speciesTable}>
         <View style={styles.tableHeader}>
           <Text style={[styles.tableHeaderText, { flex: 2 }]}>Specie</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Volum</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>%</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>m³</Text>
+          <Text style={[styles.tableHeaderText, { flex: 0.7, textAlign: 'right' }]}>%</Text>
+          <Text style={[styles.tableHeaderText, { flex: 0.8, textAlign: 'right' }]}>Arb.</Text>
         </View>
         {sorted.map((s, i) => {
           const isDominant = s.species === auction.dominantSpecies;
-          const speciesVolume = s.volumeM3 ?? (totalVolume * s.percentage / 100);
+          const speciesVolume = s.volumeM3
+            ?? auction.apvVolumePerSpecies?.[s.species]
+            ?? (totalVolume * s.percentage / 100);
+          const treeCount = dendrometry?.[s.species]?.treeCount;
           return (
             <View key={i} style={[styles.tableRow, isDominant && styles.tableRowDominant]}>
               <View style={[styles.speciesNameCell, { flex: 2 }]}>
                 <View style={[styles.speciesDot, { backgroundColor: getSpeciesColor(s.species) }]} />
-                <Text style={[styles.speciesName, isDominant && styles.speciesNameDominant]}>
+                <Text style={[styles.speciesName, isDominant && styles.speciesNameDominant]} numberOfLines={1}>
                   {s.species}
                 </Text>
               </View>
               <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
                 {formatVolume(speciesVolume)}
               </Text>
-              <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
-                {formatPercent(s.percentage)}
+              <Text style={[styles.tableCell, { flex: 0.7, textAlign: 'right' }]}>
+                {s.percentage.toFixed(0)}%
+              </Text>
+              <Text style={[styles.tableCell, { flex: 0.8, textAlign: 'right', color: Colors.textMuted }]}>
+                {treeCount != null ? treeCount : '—'}
               </Text>
             </View>
           );
@@ -561,12 +571,152 @@ function ForestTab({ auction }: { auction: Auction }) {
           <Text style={[styles.tableCell, styles.tableCellTotal, { flex: 1, textAlign: 'right' }]}>
             {formatVolume(totalVolume)}
           </Text>
-          <Text style={[styles.tableCell, styles.tableCellTotal, { flex: 1, textAlign: 'right' }]}>
+          <Text style={[styles.tableCell, styles.tableCellTotal, { flex: 0.7, textAlign: 'right' }]}>
             100%
+          </Text>
+          <Text style={[styles.tableCell, { flex: 0.8, textAlign: 'right', color: Colors.textMuted }]}>
+            {auction.apvNumberOfTrees != null ? auction.apvNumberOfTrees : '—'}
           </Text>
         </View>
       </View>
+
+      {/* Assortment breakdown */}
+      {sortVolumes && Object.keys(sortVolumes).length > 0 && (
+        <AssortmentBars sortVolumes={sortVolumes} firewoodVolume={auction.apvFirewoodVolume} barkVolume={auction.apvBarkVolume} />
+      )}
+
+      {/* Dendrometric chips */}
+      <MetricChips auction={auction} />
+
+      {/* Condition indicators */}
+      <ConditionWarnings auction={auction} />
+
       <View style={{ height: 40 }} />
+    </View>
+  );
+}
+
+// --- AssortmentBars ---
+function AssortmentBars({ sortVolumes, firewoodVolume, barkVolume }: {
+  sortVolumes: Record<string, number>;
+  firewoodVolume?: number;
+  barkVolume?: number;
+}) {
+  const industrialKeys = ['G1', 'G2', 'G3', 'M1', 'M2', 'M3', 'LS'];
+  const industrialM3 = industrialKeys.reduce((sum, k) => sum + (sortVolumes[k] ?? 0), 0);
+  const foc = firewoodVolume ?? 0;
+  const coaja = barkVolume ?? 0;
+  const total = industrialM3 + foc + coaja;
+  const industrialPct = total > 0 ? (industrialM3 / total) * 100 : 0;
+  const focPct = total > 0 ? (foc / total) * 100 : 0;
+  const coajaPct = total > 0 ? (coaja / total) * 100 : 0;
+  const rendament = total > 0 ? (industrialM3 / total * 100).toFixed(0) : '—';
+
+  const rows: { label: string; value: number; color: string }[] = [
+    { label: 'G1', value: sortVolumes.G1 ?? 0, color: '#16a34a' },
+    { label: 'G2', value: sortVolumes.G2 ?? 0, color: '#22c55e' },
+    { label: 'G3', value: sortVolumes.G3 ?? 0, color: '#4ade80' },
+    { label: 'M1', value: sortVolumes.M1 ?? 0, color: '#d97706' },
+    { label: 'M2', value: sortVolumes.M2 ?? 0, color: '#f59e0b' },
+    { label: 'M3', value: sortVolumes.M3 ?? 0, color: '#fbbf24' },
+    { label: 'LS', value: sortVolumes.LS ?? 0, color: '#fcd34d' },
+    { label: 'Lemn foc', value: foc, color: '#ef4444' },
+    { label: 'Coajă', value: coaja, color: '#6b7280' },
+  ].filter(r => r.value > 0);
+
+  return (
+    <View style={{ marginTop: 20 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Text style={styles.sectionLabel}>Sortimente lemnoase</Text>
+        <View style={[styles.woodPillSmall, { backgroundColor: 'rgba(34,197,94,0.12)', borderColor: 'rgba(34,197,94,0.3)' }]}>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: '#22c55e' }}>
+            Randament ind. {rendament}%
+          </Text>
+        </View>
+      </View>
+
+      {/* Stacked bar */}
+      <View style={{ height: 10, borderRadius: 9999, flexDirection: 'row', overflow: 'hidden', backgroundColor: Colors.surfaceElevated, marginBottom: 12 }}>
+        {industrialPct > 0 && <View style={{ flex: industrialPct, backgroundColor: '#22c55e' }} />}
+        {focPct > 0 && <View style={{ flex: focPct, backgroundColor: '#ef4444' }} />}
+        {coajaPct > 0 && <View style={{ flex: coajaPct, backgroundColor: '#6b7280' }} />}
+      </View>
+
+      {/* Rows */}
+      <View style={styles.speciesTable}>
+        {rows.map((r, i) => (
+          <View key={i} style={[styles.tableRow, i === 0 && { borderTopWidth: 0 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 2 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: r.color }} />
+              <Text style={styles.tableCell}>{r.label}</Text>
+            </View>
+            <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>{r.value.toFixed(2)} m³</Text>
+            <Text style={[styles.tableCell, { flex: 0.7, textAlign: 'right', color: Colors.textMuted }]}>
+              {total > 0 ? (r.value / total * 100).toFixed(0) : 0}%
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// --- MetricChips ---
+function MetricChips({ auction }: { auction: Auction }) {
+  const chips: { label: string; value: string | number | null | undefined }[] = [
+    { label: 'Diametru med.', value: auction.apvAverageDiameter != null ? `${auction.apvAverageDiameter} cm` : null },
+    { label: 'Înălțime med.', value: auction.apvAverageHeight != null ? `${auction.apvAverageHeight} m` : null },
+    { label: 'Vârstă med.', value: auction.apvAverageAge != null ? `${auction.apvAverageAge} ani` : null },
+    { label: 'Vol./arbore', value: (auction.apvGrossVolume != null && auction.apvNumberOfTrees != null && auction.apvNumberOfTrees > 0) ? `${(auction.apvGrossVolume / auction.apvNumberOfTrees).toFixed(2)} m³` : null },
+    { label: 'Nr. arbori', value: auction.apvNumberOfTrees != null ? auction.apvNumberOfTrees : null },
+    { label: 'Suprafață', value: auction.apvSurfaceHa != null ? `${auction.apvSurfaceHa} ha` : null },
+  ].filter(c => c.value != null);
+
+  if (chips.length === 0) return null;
+
+  return (
+    <View style={{ marginTop: 20 }}>
+      <Text style={[styles.sectionLabel, { marginBottom: 10 }]}>Date dendrometrice</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {chips.map((c, i) => (
+          <View key={i} style={styles.metricChip}>
+            <Text style={styles.metricChipLabel}>{c.label}</Text>
+            <Text style={styles.metricChipValue}>{c.value}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// --- ConditionWarnings ---
+function ConditionWarnings({ auction }: { auction: Auction }) {
+  const rottenCount = auction.apvRottenTreesCount;
+  const rottenVol = auction.apvRottenTreesVolume;
+  const dryCount = auction.apvDryTreesCount;
+  const dryVol = auction.apvDryTreesVolume;
+
+  if (!rottenCount && !dryCount) return null;
+
+  return (
+    <View style={{ marginTop: 20 }}>
+      <Text style={[styles.sectionLabel, { marginBottom: 8 }]}>Starea arboretului</Text>
+      {rottenCount != null && rottenCount > 0 && (
+        <View style={styles.warningRow}>
+          <Ionicons name="warning-outline" size={16} color={Colors.warning} />
+          <Text style={styles.warningText}>
+            {rottenCount} arbori putreziți{rottenVol != null ? ` (${rottenVol.toFixed(2)} m³)` : ''}
+          </Text>
+        </View>
+      )}
+      {dryCount != null && dryCount > 0 && (
+        <View style={styles.warningRow}>
+          <Ionicons name="warning-outline" size={16} color={Colors.warning} />
+          <Text style={styles.warningText}>
+            {dryCount} arbori uscați{dryVol != null ? ` (${dryVol.toFixed(2)} m³)` : ''}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -1032,6 +1182,49 @@ const styles = StyleSheet.create({
   },
   tableCellTotal: {
     fontWeight: '700',
+  },
+  woodPillSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  metricChip: {
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: '30%',
+    flex: 1,
+  },
+  metricChipLabel: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginBottom: 2,
+  },
+  metricChipValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  warningRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(245,158,11,0.08)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.20)',
+    marginBottom: 6,
+  },
+  warningText: {
+    fontSize: 13,
+    color: Colors.warning,
+    fontWeight: '500',
   },
   // Documents tab
   docCard: {

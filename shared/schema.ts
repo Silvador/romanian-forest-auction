@@ -116,7 +116,30 @@ export const regions = [
 export interface SpeciesBreakdown {
   species: typeof speciesTypes[number];
   percentage: number;
-  volumeM3?: number; // Volume in cubic meters for this species
+  volumeM3?: number;
+}
+
+export interface DendrometryEntry {
+  dt_cm?: number;
+  dcg_cm?: number;
+  ht_m?: number;
+  hc_m?: number;
+  age_years?: number;
+  volPerTree_m3?: number;
+  treeCount?: number;
+}
+
+export interface SortVolumesEntry {
+  G1?: number;
+  G2?: number;
+  G3?: number;
+  M1?: number;
+  M2?: number;
+  M3?: number;
+  LS?: number;
+  firewood?: number;
+  bark?: number;
+  grossVolume?: number;
 }
 
 export interface DocumentMetadata {
@@ -188,6 +211,13 @@ export interface Auction {
   apvAccessibility?: string;
   apvAverageAge?: number;
   apvSlopePercent?: number;
+  apvDendrometryPerSpecies?: Record<string, DendrometryEntry>;
+  apvSortVolumesPerSpecies?: Record<string, SortVolumesEntry>;
+  apvRottenTreesCount?: number;
+  apvRottenTreesVolume?: number;
+  apvDryTreesCount?: number;
+  apvDryTreesVolume?: number;
+  apvExploitationDeadline?: string;
 }
 
 export const insertAuctionSchema = z.object({
@@ -202,6 +232,7 @@ export const insertAuctionSchema = z.object({
   speciesBreakdown: z.array(z.object({
     species: z.enum(speciesTypes),
     percentage: z.number().min(0).max(100),
+    volumeM3: z.number().optional(),
   })).min(1).refine(
     (breakdown) => {
       const total = breakdown.reduce((sum, item) => sum + item.percentage, 0);
@@ -242,6 +273,32 @@ export const insertAuctionSchema = z.object({
   apvAccessibility: z.string().optional(),
   apvAverageAge: z.number().optional(),
   apvSlopePercent: z.number().optional(),
+  apvDendrometryPerSpecies: z.record(z.object({
+    dt_cm: z.number().optional(),
+    dcg_cm: z.number().optional(),
+    ht_m: z.number().optional(),
+    hc_m: z.number().optional(),
+    age_years: z.number().optional(),
+    volPerTree_m3: z.number().optional(),
+    treeCount: z.number().optional(),
+  })).optional(),
+  apvSortVolumesPerSpecies: z.record(z.object({
+    G1: z.number().optional(),
+    G2: z.number().optional(),
+    G3: z.number().optional(),
+    M1: z.number().optional(),
+    M2: z.number().optional(),
+    M3: z.number().optional(),
+    LS: z.number().optional(),
+    firewood: z.number().optional(),
+    bark: z.number().optional(),
+    grossVolume: z.number().optional(),
+  })).optional(),
+  apvRottenTreesCount: z.number().optional(),
+  apvRottenTreesVolume: z.number().optional(),
+  apvDryTreesCount: z.number().optional(),
+  apvDryTreesVolume: z.number().optional(),
+  apvExploitationDeadline: z.string().optional(),
 });
 
 export type InsertAuction = z.infer<typeof insertAuctionSchema>;
@@ -351,6 +408,13 @@ export interface ApvExtractionResult {
   averageAge?: number;
   slopePercent?: number;
   rawText?: string;
+  dendrometryPerSpecies?: Record<string, DendrometryEntry>;
+  sortVolumesPerSpecies?: Record<string, SortVolumesEntry>;
+  rottenTreesCount?: number;
+  rottenTreesVolume?: number;
+  dryTreesCount?: number;
+  dryTreesVolume?: number;
+  exploitationDeadline?: string;
 }
 
 // Price Alert schema (Phase 3)

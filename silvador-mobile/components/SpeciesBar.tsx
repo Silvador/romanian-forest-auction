@@ -53,7 +53,7 @@ export function SpeciesBar({ breakdown, showTags = true, maxTags = 3 }: Props) {
                 style={[styles.tag, { backgroundColor: color + '1A', borderColor: color + '33' }]}
               >
                 <Text style={[styles.tagText, { color }]}>
-                  {s.species.split(' ')[0]} {s.percentage.toFixed(0)}%
+                  {s.species.split(' ')[0]}{s.volumeM3 != null ? ` ${Math.round(s.volumeM3)}m³ · ` : ' '}{s.percentage.toFixed(0)}%
                 </Text>
               </View>
             );

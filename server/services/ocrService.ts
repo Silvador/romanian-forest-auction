@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import pdfParse from "pdf-parse";
-import type { ApvExtractionResult, SpeciesBreakdown } from "@shared/schema";
+import type { ApvExtractionResult, SpeciesBreakdown, DendrometryEntry, SortVolumesEntry } from "@shared/schema";
 
 // Lazy initialization - only create OpenAI client when needed
 let openai: OpenAI | null = null;
@@ -206,9 +206,15 @@ Use the same field names and extraction rules as for image-based APV documents:
 - treatmentType, productType, extractionMethod, harvestYear, inventoryMethod
 - hammerMark, accessibility, species (dominant species), volumePerSpecies (object mapping each species name to its volume in m³)
 - numberOfTrees, averageHeight, averageDiameter, averageAge, slopePercent
-- sortVolumes (object), dimensionalSorting (string), grading (string)
+- sortVolumes (object with TOTAL G1/G2/G3/M1/M2/M3/LS volumes), dimensionalSorting (string), grading (string)
+- sortVolumesPerSpecies: per-species sorting {"STEJAR": {"G1":10.5,"G2":25.3,"G3":8.1,"M1":5.2,"M2":1.8,"M3":0,"LS":3.1,"firewood":15.2,"bark":8.3,"grossVolume":77.5}}
+- dendrometryPerSpecies: per-species dendrometrics {"STEJAR": {"dt_cm":28,"dcg_cm":30,"ht_m":22.5,"hc_m":18.0,"age_years":85,"volPerTree_m3":0.41,"treeCount":200}}
+- rottenTreesCount, rottenTreesVolume (arbori putreziți)
+- dryTreesCount, dryTreesVolume (arbori uscați)
+- exploitationDeadline: year/date by which exploitation must be completed (look for "Termenul de exploatare")
 
 CRITICAL: Extract ALL species from the species breakdown table into volumePerSpecies.
+For sortVolumesPerSpecies and dendrometryPerSpecies: scan ALL tables carefully — these are the most valuable fields.
 Return ONLY valid JSON, no other text.`,
       },
       {
@@ -216,7 +222,7 @@ Return ONLY valid JSON, no other text.`,
         content: `Extract APV data from this Romanian forestry permit text:\n\n${text.slice(0, 12000)}`,
       },
     ],
-    max_tokens: 1000,
+    max_tokens: 2500,
     temperature: 0.1,
   });
 
@@ -291,6 +297,43 @@ function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvEx
       }, {} as Record<string, number>)
     : undefined;
 
+  // Per-species dimensional sorting (species keys normalized)
+  const sortVolumesPerSpecies: Record<string, SortVolumesEntry> | undefined = extracted.sortVolumesPerSpecies
+    ? Object.entries(extracted.sortVolumesPerSpecies).reduce((acc, [speciesKey, entry]: [string, any]) => {
+        const normalizedKey = normalizeSpeciesName(speciesKey);
+        acc[normalizedKey] = {
+          G1: entry.G1 != null ? normalizeNumber(entry.G1) : undefined,
+          G2: entry.G2 != null ? normalizeNumber(entry.G2) : undefined,
+          G3: entry.G3 != null ? normalizeNumber(entry.G3) : undefined,
+          M1: entry.M1 != null ? normalizeNumber(entry.M1) : undefined,
+          M2: entry.M2 != null ? normalizeNumber(entry.M2) : undefined,
+          M3: entry.M3 != null ? normalizeNumber(entry.M3) : undefined,
+          LS: entry.LS != null ? normalizeNumber(entry.LS) : undefined,
+          firewood: entry.firewood != null ? normalizeNumber(entry.firewood) : undefined,
+          bark: entry.bark != null ? normalizeNumber(entry.bark) : undefined,
+          grossVolume: entry.grossVolume != null ? normalizeNumber(entry.grossVolume) : undefined,
+        };
+        return acc;
+      }, {} as Record<string, SortVolumesEntry>)
+    : undefined;
+
+  // Per-species dendrometry (species keys normalized)
+  const dendrometryPerSpecies: Record<string, DendrometryEntry> | undefined = extracted.dendrometryPerSpecies
+    ? Object.entries(extracted.dendrometryPerSpecies).reduce((acc, [speciesKey, entry]: [string, any]) => {
+        const normalizedKey = normalizeSpeciesName(speciesKey);
+        acc[normalizedKey] = {
+          dt_cm: entry.dt_cm != null ? normalizeNumber(entry.dt_cm) : undefined,
+          dcg_cm: entry.dcg_cm != null ? normalizeNumber(entry.dcg_cm) : undefined,
+          ht_m: entry.ht_m != null ? normalizeNumber(entry.ht_m) : undefined,
+          hc_m: entry.hc_m != null ? normalizeNumber(entry.hc_m) : undefined,
+          age_years: entry.age_years != null ? parseInt(String(entry.age_years)) : undefined,
+          volPerTree_m3: entry.volPerTree_m3 != null ? normalizeNumber(entry.volPerTree_m3) : undefined,
+          treeCount: entry.treeCount != null ? parseInt(String(entry.treeCount)) : undefined,
+        };
+        return acc;
+      }, {} as Record<string, DendrometryEntry>)
+    : undefined;
+
   const speciesBreakdown = calculateSpeciesBreakdown(mappedSpecies, volumeM3, volumePerSpecies);
 
   return {
@@ -326,6 +369,13 @@ function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvEx
     diameter: extracted.diameter || "",
     grading: extracted.grading || "",
     rawText,
+    sortVolumesPerSpecies,
+    dendrometryPerSpecies,
+    rottenTreesCount: extracted.rottenTreesCount ? parseInt(String(extracted.rottenTreesCount)) : undefined,
+    rottenTreesVolume: extracted.rottenTreesVolume ? normalizeNumber(extracted.rottenTreesVolume) : undefined,
+    dryTreesCount: extracted.dryTreesCount ? parseInt(String(extracted.dryTreesCount)) : undefined,
+    dryTreesVolume: extracted.dryTreesVolume ? normalizeNumber(extracted.dryTreesVolume) : undefined,
+    exploitationDeadline: extracted.exploitationDeadline ? String(extracted.exploitationDeadline) : undefined,
   };
 }
 
@@ -365,11 +415,19 @@ Extract the following information and return it as JSON:
 - averageDiameter: Average diameter in cm (look for "Diametre" or "dt" or "dcg")
 - averageAge: Average age of trees in years (look for "Vârsta" - integer value)
 - slopePercent: Terrain slope percentage (look for "Pantă %" - integer value)
-- sortVolumes: Object with dimensional sorting volumes (e.g., {"G1": 2.66, "G2": 27.62, "G3": 12.96, "M1": 10.31, "M2": 2.58, "LS": 10.42})
+- sortVolumes: Object with TOTAL dimensional sorting volumes across all species (e.g., {"G1": 2.66, "G2": 27.62, "G3": 12.96, "M1": 10.31, "M2": 2.58, "LS": 10.42})
 - dimensionalSorting: Detailed dimensional sorting as string (e.g., "G1: 2.66mc, G2: 27.62mc, G3: 12.96mc, M1: 10.31mc, M2: 2.58mc, LS: 10.42mc")
 - grading: Grading breakdown as a string (legacy field)
+- sortVolumesPerSpecies: CRITICAL - Per-species dimensional sorting. Look for the main APV table that shows G1/G2/G3/M1/M2/M3/LS/firewood/bark volumes for each species row. Return as object: {"STEJAR PEDUNCULAT": {"G1": 10.5, "G2": 25.3, "G3": 8.1, "M1": 5.2, "M2": 1.8, "M3": 0, "LS": 3.1, "firewood": 15.2, "bark": 8.3, "grossVolume": 77.5}, ...}
+- dendrometryPerSpecies: CRITICAL - Per-species dendrometric data from the lower table. Look for columns dt (diameter tip), dcg (diameter central of gravity), Ht (total height), Hc (commercial height), Varsta (age), V/arbore (volume per tree), Nr.arbori (tree count). Return as object: {"STEJAR PEDUNCULAT": {"dt_cm": 28, "dcg_cm": 30, "ht_m": 22.5, "hc_m": 18.0, "age_years": 85, "volPerTree_m3": 0.41, "treeCount": 200}, ...}
+- rottenTreesCount: Number of rotten/putred trees (look for "arbori putreziți" or "putrezit" in the document)
+- rottenTreesVolume: Volume of rotten trees in m³
+- dryTreesCount: Number of dry/dead trees (look for "arbori uscați" or "uscat")
+- dryTreesVolume: Volume of dry trees in m³
+- exploitationDeadline: Year or date by which exploitation must be completed (look for "Termenul de exploatare" or "Termenul de valorificare", return as YYYY or YYYY-MM-DD string)
 
 IMPORTANT: Pay special attention to the species breakdown table. Extract EVERY species row with its volume. Do not summarize or skip species.
+For sortVolumesPerSpecies and dendrometryPerSpecies: scan ALL tables in the document carefully. These are the most economically important fields.
 
 Return ONLY valid JSON, no other text.`,
         },
@@ -392,7 +450,7 @@ Return ONLY valid JSON, no other text.`,
           ],
         },
       ],
-      max_tokens: 1000,
+      max_tokens: 2500,
       temperature: 0.1,
     });
 

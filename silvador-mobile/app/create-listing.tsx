@@ -184,6 +184,13 @@ export default function CreateListingScreen() {
       if (apv.accessibility) payload.apvAccessibility = String(apv.accessibility);
       if (apv.averageAge) payload.apvAverageAge = Number(apv.averageAge);
       if (apv.slopePercent) payload.apvSlopePercent = Number(apv.slopePercent);
+      if (apv.dendrometryPerSpecies) payload.apvDendrometryPerSpecies = apv.dendrometryPerSpecies;
+      if (apv.sortVolumesPerSpecies) payload.apvSortVolumesPerSpecies = apv.sortVolumesPerSpecies;
+      if (apv.rottenTreesCount) payload.apvRottenTreesCount = Number(apv.rottenTreesCount);
+      if (apv.rottenTreesVolume) payload.apvRottenTreesVolume = Number(apv.rottenTreesVolume);
+      if (apv.dryTreesCount) payload.apvDryTreesCount = Number(apv.dryTreesCount);
+      if (apv.dryTreesVolume) payload.apvDryTreesVolume = Number(apv.dryTreesVolume);
+      if (apv.exploitationDeadline) payload.apvExploitationDeadline = String(apv.exploitationDeadline);
     }
 
     return payload;

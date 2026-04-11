@@ -96,6 +96,26 @@ export interface Auction {
   apvAccessibility?: string;
   apvAverageAge?: number;
   apvSlopePercent?: number;
+  apvDendrometryPerSpecies?: Record<string, {
+    dt_cm?: number;
+    dcg_cm?: number;
+    ht_m?: number;
+    hc_m?: number;
+    age_years?: number;
+    volPerTree_m3?: number;
+    treeCount?: number;
+  }>;
+  apvSortVolumesPerSpecies?: Record<string, {
+    G1?: number; G2?: number; G3?: number;
+    M1?: number; M2?: number; M3?: number;
+    LS?: number; firewood?: number; bark?: number;
+    grossVolume?: number;
+  }>;
+  apvRottenTreesCount?: number;
+  apvRottenTreesVolume?: number;
+  apvDryTreesCount?: number;
+  apvDryTreesVolume?: number;
+  apvExploitationDeadline?: string;
 }
 
 export interface Bid {
@@ -251,4 +271,11 @@ export interface InsertAuction {
   apvAverageDiameter?: number;
   apvSurfaceHa?: number;
   apvSlopePercent?: number;
+  apvDendrometryPerSpecies?: Record<string, any>;
+  apvSortVolumesPerSpecies?: Record<string, any>;
+  apvRottenTreesCount?: number;
+  apvRottenTreesVolume?: number;
+  apvDryTreesCount?: number;
+  apvDryTreesVolume?: number;
+  apvExploitationDeadline?: string;
 }

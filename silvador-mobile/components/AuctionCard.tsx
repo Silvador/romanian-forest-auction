@@ -116,6 +116,9 @@ function AuctionCardImpl({
           <SpeciesBar breakdown={auction.speciesBreakdown} maxTags={3} />
         </View>
 
+        {/* Industrial / Firewood split pills */}
+        <WoodSplitPill auction={auction} />
+
         {/* Metrics row */}
         <View style={styles.metricsRow}>
           <View style={styles.metric}>
@@ -195,6 +198,37 @@ function AuctionCardImpl({
         </View>
       </Pressable>
     </Animated.View>
+  );
+}
+
+// --- Wood split pill (industrial vs firewood) ---
+function WoodSplitPill({ auction }: { auction: Auction }) {
+  const sortVolumes = auction.apvSortVolumes as Record<string, number> | undefined;
+  const industrialKeys = ['G1', 'G2', 'G3', 'M1', 'M2', 'M3', 'LS'];
+  const industrialM3 = sortVolumes
+    ? industrialKeys.reduce((sum, k) => sum + (sortVolumes[k] ?? 0), 0)
+    : 0;
+  const firewoodM3 = (auction.apvFirewoodVolume as number | undefined) ?? 0;
+
+  if (industrialM3 === 0 && firewoodM3 === 0) return null;
+
+  return (
+    <View style={styles.woodSplitRow}>
+      {industrialM3 > 0 && (
+        <View style={[styles.woodPill, styles.woodPillIndustrial]}>
+          <Text style={[styles.woodPillText, styles.woodPillIndustrialText]}>
+            Ind. {Math.round(industrialM3)}m³
+          </Text>
+        </View>
+      )}
+      {firewoodM3 > 0 && (
+        <View style={[styles.woodPill, styles.woodPillFirewood]}>
+          <Text style={[styles.woodPillText, styles.woodPillFirewoodText]}>
+            Foc {Math.round(firewoodM3)}m³
+          </Text>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -409,5 +443,34 @@ const styles = StyleSheet.create({
   resultText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  woodSplitRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8,
+  },
+  woodPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  woodPillIndustrial: {
+    backgroundColor: 'rgba(34,197,94,0.1)',
+    borderColor: 'rgba(34,197,94,0.3)',
+  },
+  woodPillFirewood: {
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderColor: 'rgba(239,68,68,0.3)',
+  },
+  woodPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  woodPillIndustrialText: {
+    color: '#22c55e',
+  },
+  woodPillFirewoodText: {
+    color: '#ef4444',
   },
 });
