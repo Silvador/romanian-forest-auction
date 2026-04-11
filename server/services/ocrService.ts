@@ -127,6 +127,13 @@ const speciesMapping: Record<string, string> = {
   "SORB": "Sorb de munte",
   "SORB DE MUNTE": "Sorb de munte",
 
+  // Scoruș / Sorb variants
+  "SCORUȘ": "Sorb de munte",
+  "SCORUS": "Sorb de munte",
+  "SCORUȘ DE MUNTE": "Sorb de munte",
+  "SORB": "Sorb de munte",
+  "SORB DE MUNTE": "Sorb de munte",
+
   // Nuc and Castanul
   "NUC": "Nuc",
   "NUCUL": "Nuc",
@@ -255,7 +262,12 @@ function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvEx
 
   const normalizeSpeciesName = (species: string): string => {
     const upperSpecies = species.toUpperCase();
-    return speciesMapping[upperSpecies] || species;
+    // Direct match first
+    if (speciesMapping[upperSpecies]) return speciesMapping[upperSpecies];
+    // Strip silvicultural suffixes: (S) = sămânțoase, (L) = lăstăriș, (I), (T), etc.
+    const stripped = upperSpecies.replace(/\s*\([A-Z]\)\s*$/, '').trim();
+    if (speciesMapping[stripped]) return speciesMapping[stripped];
+    return species;
   };
 
   const volumePerSpecies: Record<string, number> | undefined = extracted.volumePerSpecies

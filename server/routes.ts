@@ -172,7 +172,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate and update with full data
-      const validatedData = insertAuctionSchema.parse(req.body);
+      const parseResult = insertAuctionSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        console.error('[AUCTION-UPDATE] Zod validation failed:', JSON.stringify(parseResult.error.issues, null, 2));
+        return res.status(400).json(parseResult.error.issues);
+      }
+      const validatedData = parseResult.data;
 
       // Determine dominant species
       const dominantSpecies = validatedData.dominantSpecies ||
@@ -243,7 +248,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate request body
-      const validatedData = insertAuctionSchema.parse(req.body);
+      const parseResult = insertAuctionSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        console.error('[AUCTION-CREATE] Zod validation failed:', JSON.stringify(parseResult.error.issues, null, 2));
+        return res.status(400).json(parseResult.error.issues);
+      }
+      const validatedData = parseResult.data;
 
       // Determine dominant species (highest percentage, or first if all equal)
       const dominantSpecies = validatedData.dominantSpecies || 
