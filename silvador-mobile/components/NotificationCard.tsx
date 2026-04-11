@@ -25,7 +25,10 @@ const iconStyles: Record<NotificationType, IconStyle> = {
 
 export function NotificationCard({ notification, onPress }: Props) {
   const style = iconStyles[notification.type] || iconStyles.new_bid;
-  const copy = getNotificationCopy(notification.type);
+  const fallback = getNotificationCopy(notification.type);
+  // Prefer server-stored title/message; fall back to template only when absent
+  const displayTitle = notification.title || fallback.title;
+  const displayMessage = notification.message || fallback.message;
   const isUnread = !notification.read;
 
   return (
@@ -41,10 +44,10 @@ export function NotificationCard({ notification, onPress }: Props) {
       {/* Content */}
       <View style={styles.content}>
         <Text style={[styles.title, isUnread && styles.titleUnread]}>
-          {copy.title}
+          {displayTitle}
         </Text>
         <Text style={styles.message} numberOfLines={3}>
-          {copy.message}
+          {displayMessage}
         </Text>
         <Text style={styles.timestamp}>{formatRelative(notification.timestamp)}</Text>
       </View>

@@ -83,11 +83,11 @@ export default function NotificationsScreen() {
             ],
           };
         });
-        const copy = getNotificationCopy(notification.type);
+        const fallback = getNotificationCopy(notification.type);
         toast.show({
           type: notification.type === 'outbid' ? 'error' : notification.type === 'won' ? 'success' : 'info',
-          title: copy.title,
-          message: copy.message,
+          title: notification.title || fallback.title,
+          message: notification.message || fallback.message,
           auctionId: notification.auctionId,
         });
       },

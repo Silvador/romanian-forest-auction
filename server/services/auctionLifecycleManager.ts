@@ -170,9 +170,9 @@ export class AuctionLifecycleManager {
     try {
       await this.createNotification({
         userId: auction.ownerId,
-        type: "auction_ending", // Reusing this type for "auction started"
-        title: "Your auction is now live!",
-        message: `"${auction.title}" is now active and accepting bids.`,
+        type: "new_bid", // closest available type; "auction started" has no dedicated type
+        title: "Licitația ta este acum activă",
+        message: `„${auction.title}" acceptă oferte de acum.`,
         auctionId: auction.id,
         read: false,
         timestamp: Date.now(),
