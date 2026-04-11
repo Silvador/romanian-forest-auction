@@ -130,40 +130,16 @@ export default function DetailedAnalyticsScreen() {
               {(showAllSpecies ? speciesPositioning : speciesPositioning.slice(0, 5)).map((s) => {
                 const isUp = s.change >= 0;
                 const accentColor = isUp ? Colors.success : Colors.error;
-                const max8 = Math.max(...s.last8, 1);
                 return (
                   <View key={s.species} style={[styles.posRow, { borderLeftColor: accentColor }]}>
                     <View style={styles.posLeft}>
-                      <Text style={styles.posSpecies}>{s.species}</Text>
-                      <Text style={styles.posMeta}>
-                        {(s.volume / 1000).toFixed(1)}k m³
-                      </Text>
+                      <Text style={styles.posSpecies} numberOfLines={1}>{s.species}</Text>
+                      <Text style={styles.posMeta}>{(s.volume / 1000).toFixed(1)}k m³</Text>
                     </View>
-                    <Text style={styles.posPrice}>{s.price.toFixed(0)} RON</Text>
-                    {/* Mini sparkbar */}
-                    <View style={styles.sparkbar}>
-                      {s.last8.map((v, i) => (
-                        <View
-                          key={i}
-                          style={[
-                            styles.sparkbarBar,
-                            {
-                              height: Math.max(4, (v / max8) * 28),
-                              backgroundColor: accentColor,
-                              opacity: i === s.last8.length - 1 ? 0.9 : 0.35,
-                            },
-                          ]}
-                        />
-                      ))}
-                    </View>
-                    <View
-                      style={[
-                        styles.changeBadge,
-                        { backgroundColor: accentColor + '20', borderColor: accentColor + '40' },
-                      ]}
-                    >
-                      <Text style={[styles.changeBadgeText, { color: accentColor }]}>
-                        {isUp ? '↑' : '↓'}{Math.abs(s.change).toFixed(0)}%
+                    <View style={styles.posRight}>
+                      <Text style={styles.posPrice}>{s.price.toFixed(0)} RON/m³</Text>
+                      <Text style={[styles.posChange, { color: accentColor }]}>
+                        {isUp ? '↑' : '↓'} {Math.abs(s.change).toFixed(0)}%
                       </Text>
                     </View>
                   </View>
@@ -334,6 +310,7 @@ const styles = StyleSheet.create({
   posRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 10,
     paddingVertical: 10,
     paddingLeft: 10,
@@ -343,7 +320,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bg,
   },
   posLeft: {
-    width: 96,
+    flex: 1,
   },
   posSpecies: {
     fontSize: 14,
@@ -353,34 +330,20 @@ const styles = StyleSheet.create({
   posMeta: {
     fontSize: 11,
     color: Colors.textMuted,
-    marginTop: 1,
+    marginTop: 2,
+  },
+  posRight: {
+    alignItems: 'flex-end',
   },
   posPrice: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: Colors.primary,
-    width: 66,
   },
-  sparkbar: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 2,
-    height: 28,
-    width: 80,
-  },
-  sparkbarBar: {
-    width: 6,
-    borderRadius: 2,
-  },
-  changeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  changeBadgeText: {
-    fontSize: 11,
+  posChange: {
+    fontSize: 12,
     fontWeight: '700',
+    marginTop: 2,
   },
   // Expand toggle
   expandToggle: {

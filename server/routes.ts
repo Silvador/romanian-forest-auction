@@ -22,7 +22,8 @@ import {
   getAuctionPrice,
 } from "./utils/analyticsHelpers";
 import { initializeWebSocket, setIO, getIO } from "./websocket";
-import { speciesTypes } from "@shared/schema";
+import { speciesTypes, regions } from "@shared/schema";
+const validRegionsSet = new Set<string>(regions as unknown as string[]);
 
 // Normalize species names coming from OCR/mobile before Zod validation.
 // Handles: suffix codes like "(S)"/"(L)", abbreviations, and common OCR variants.
@@ -1328,9 +1329,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
 
-      // Average price by region
+      // Average price by region — skip old region names (Muntenia, Oltenia, etc.)
       const priceByRegion: Record<string, { total: number; count: number; volume: number }> = {};
       completedAuctions.forEach(a => {
+        if (!validRegionsSet.has(a.region)) return; // filter out non-county region values
         const pricePerM3 = getAuctionPrice(a);
         if (!priceByRegion[a.region]) {
           priceByRegion[a.region] = { total: 0, count: 0, volume: 0 };
