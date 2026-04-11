@@ -64,13 +64,16 @@ export function SegmentedBurnRing({
   const litCount  = Math.max(0, Math.min(segments, Math.ceil(remainingRatio * segments)));
   const isExpired = remaining <= 0;
 
-  // Phase detection
+  // Phase detection — absolute-time anchors so long auctions (days remaining)
+  // never show amber/red just because ratio dips below 33%.
+  // Rule: >24 h or >50% remaining → green; >1 h or >10% → amber; else red.
+  const HOUR_MS = 3_600_000;
   const phase: 'burn' | 'shimmer' | 'heartbeat' | 'expired' =
     isExpired
       ? 'expired'
-      : remainingRatio > 0.33
+      : (remaining >= 24 * HOUR_MS || remainingRatio > 0.5)
         ? 'burn'
-        : remainingRatio > 0.10
+        : (remaining >= HOUR_MS || remainingRatio > 0.10)
           ? 'shimmer'
           : 'heartbeat';
 

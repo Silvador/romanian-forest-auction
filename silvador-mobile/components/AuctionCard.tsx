@@ -245,7 +245,7 @@ function WoodSplitPill({ auction }: { auction: Auction }) {
 
 // --- Countdown chip ---
 // Replaces the SVG ring on cards. Color tracks remaining-time:
-// green > 33%, orange 10-33%, red < 10%.
+// green: >24h or >50% remaining; orange: >1h or >10%; red: <1h and <10%.
 function CountdownChip({ endTime, startTime }: { endTime: number; startTime: number }) {
   const [now, setNow] = useState(Date.now());
 
@@ -254,15 +254,16 @@ function CountdownChip({ endTime, startTime }: { endTime: number; startTime: num
     return () => clearInterval(interval);
   }, []);
 
+  const HOUR_MS = 3_600_000;
   const totalDuration = endTime - startTime;
   const remaining = Math.max(0, endTime - now);
   const progress = totalDuration > 0 ? remaining / totalDuration : 0;
   const color =
     remaining <= 0
       ? Colors.textMuted
-      : progress > 0.33
+      : (remaining >= 24 * HOUR_MS || progress > 0.5)
         ? Colors.success
-        : progress > 0.1
+        : (remaining >= HOUR_MS || progress > 0.1)
           ? Colors.warning
           : Colors.error;
 
