@@ -178,6 +178,7 @@ export function BuyerDashboard() {
             currentUserId={user?.id}
             watchlistIds={watchlistIds}
             onToggleWatchlist={toggleWatchlist}
+            onQuickBid={setRebidAuction}
             onExplore={() => router.push('/(tabs)')}
           />
         )}
@@ -346,12 +347,14 @@ function WatchlistTab({
   currentUserId,
   watchlistIds,
   onToggleWatchlist,
+  onQuickBid,
   onExplore,
 }: {
   auctions: Auction[];
   currentUserId?: string;
   watchlistIds: Set<string>;
   onToggleWatchlist: (id: string) => void;
+  onQuickBid: (auction: Auction) => void;
   onExplore: () => void;
 }) {
   if (auctions.length === 0) {
@@ -377,7 +380,9 @@ function WatchlistTab({
           auction={auction}
           currentUserId={currentUserId}
           isWatchlisted={watchlistIds.has(auction.id)}
+          canBid
           onToggleWatchlist={onToggleWatchlist}
+          onQuickBid={onQuickBid}
         />
       ))}
     </View>
