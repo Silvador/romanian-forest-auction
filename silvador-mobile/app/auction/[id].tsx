@@ -267,6 +267,8 @@ function DetailsTab({
   const increment = getSpeciesIncrement(auction.dominantSpecies);
   const projectedTotal = auction.currentPricePerM3 * auction.volumeM3;
   const isActive = auction.status === 'active';
+  const displayCoords: { lat: number; lng: number } | null =
+    auction.gpsCoordinates ?? (auction as any).publicApvPoint ?? null;
 
   // Compute total session length for the "din 3h 24m total" line
   const totalDurationLabel = formatCountdown(auction.endTime).replace(/\d+s$/, '').trim();
