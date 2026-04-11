@@ -375,8 +375,6 @@ function DetailsTab({
       {/* Info grid — 2x2 cards */}
       <Text style={styles.sectionHeader}>INFORMATII LOT</Text>
       <View style={styles.infoGrid}>
-        <InfoItem icon="location-outline" label="Locatie" value={auction.location || '—'} />
-        <InfoItem icon="person-outline" label="Proprietar" value={auction.ownerName || '—'} />
         <InfoItem icon="cube-outline" label="Volum" value={formatVolume(auction.volumeM3)} />
         <InfoItem icon="people-outline" label="Oferte" value={String(auction.bidCount ?? 0)} />
       </View>
