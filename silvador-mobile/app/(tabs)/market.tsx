@@ -7,8 +7,9 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Path, Line, Circle, Text as SvgText } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -33,54 +34,120 @@ function getSpeciesColor(species: string): string {
   return match ? SpeciesColors[match] : '#9CA3AF';
 }
 
-// ── Aggregate bar chart ───────────────────────────────────────────────────────
-interface BarPoint { date: string; price: number }
+// ── Per-species line chart ─────────────────────────────────────────────────────
+function toWeekKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  const jan4 = new Date(d.getFullYear(), 0, 4);
+  const weekNum = Math.ceil(((d.getTime() - jan4.getTime()) / 86400000 + jan4.getDay() + 1) / 7);
+  return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+}
 
-function PriceBarChart({
+function PriceLineChart({
   data,
   periodLabel,
 }: {
   data: Record<string, { date: string; pricePerM3: number }[]> | undefined;
   periodLabel: string;
 }) {
-  const points = useMemo<BarPoint[]>(() => {
+  const { width: screenWidth } = useWindowDimensions();
+  const [selectedIdx, setSelectedIdx] = useState(0);
+
+  // Build per-species weekly-averaged series, top 4 by data density
+  const series = useMemo(() => {
     if (!data) return [];
-    const map = new Map<string, { sum: number; count: number }>();
-    Object.values(data).forEach((series) => {
-      series.forEach(({ date, pricePerM3 }) => {
-        const entry = map.get(date) ?? { sum: 0, count: 0 };
-        entry.sum += pricePerM3;
-        entry.count += 1;
-        map.set(date, entry);
-      });
-    });
-    return Array.from(map.entries())
-      .map(([date, { sum, count }]) => ({ date, price: sum / count }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(-15);
+    return Object.entries(data)
+      .map(([species, pts]) => {
+        const buckets = new Map<string, { sum: number; count: number; date: string }>();
+        pts.forEach(({ date, pricePerM3 }) => {
+          if (!Number.isFinite(pricePerM3) || pricePerM3 <= 0) return;
+          const key = toWeekKey(date);
+          const b = buckets.get(key) ?? { sum: 0, count: 0, date };
+          b.sum += pricePerM3;
+          b.count += 1;
+          buckets.set(key, b);
+        });
+        const weekly = Array.from(buckets.entries())
+          .map(([key, { sum, count, date }]) => ({ weekKey: key, date, price: sum / count }))
+          .sort((a, b) => a.weekKey.localeCompare(b.weekKey));
+        return { species, pts: weekly };
+      })
+      .filter((s) => s.pts.length >= 2)
+      .sort((a, b) => b.pts.length - a.pts.length)
+      .slice(0, 4);
   }, [data]);
 
-  const species = useMemo(() => Object.keys(data ?? {}), [data]);
+  // Clamp selectedIdx if series shrinks
+  const safeIdx = Math.min(selectedIdx, Math.max(0, series.length - 1));
+  const selected = series[safeIdx];
 
-  if (points.length === 0) return null;
+  if (!selected) {
+    return (
+      <View style={chartStyles.card}>
+        <View style={chartStyles.header}>
+          <Text style={chartStyles.title}>Evolutie pret (RON/m³)</Text>
+          <Text style={chartStyles.period}>{periodLabel}</Text>
+        </View>
+        <Text style={chartStyles.emptyText}>Date insuficiente</Text>
+      </View>
+    );
+  }
 
-  // Use 90th-percentile as scale max so one outlier spike doesn't flatten all other bars
-  const sorted = [...points].sort((a, b) => a.price - b.price);
-  const p90idx = Math.floor(sorted.length * 0.9);
-  const maxPrice = Math.max(sorted[p90idx]?.price ?? sorted[sorted.length - 1].price, 1);
-  const BAR_HEIGHT = 100;
+  const color = getSpeciesColor(selected.species);
+  const pts = selected.pts;
 
-  // Date axis: 5 evenly-spaced labels
-  const n = points.length;
-  const axisIndices = [
-    0,
-    Math.floor(n / 4),
-    Math.floor(n / 2),
-    Math.floor(3 * n / 4),
-    n - 1,
-  ];
-  // Deduplicate in case n < 5
-  const uniqueIndices = [...new Set(axisIndices)];
+  // Chart geometry
+  const PAD_LEFT = 38;
+  const PAD_RIGHT = 12;
+  const PAD_TOP = 10;
+  const PAD_BOTTOM = 20;
+  const chartW = screenWidth - 64;
+  const chartH = 155;
+  const plotW = chartW - PAD_LEFT - PAD_RIGHT;
+  const plotH = chartH - PAD_TOP - PAD_BOTTOM;
+
+  // Scale: y from minPrice*0.85 to maxPrice*1.12 so the line fills the chart
+  const prices = pts.map((p) => p.price).filter((v) => Number.isFinite(v) && v > 0);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const minY = minPrice * 0.85;
+  const maxY = maxPrice * 1.12;
+  const priceRange = Math.max(maxY - minY, 1);
+
+  const n = pts.length;
+  const xScale = (i: number) => PAD_LEFT + (i / Math.max(n - 1, 1)) * plotW;
+  const yScale = (price: number) => PAD_TOP + plotH - ((price - minY) / priceRange) * plotH;
+
+  // Build coords, filtering bad values
+  const coords = pts
+    .map((p, i) => {
+      const x = xScale(i);
+      const y = yScale(p.price);
+      return Number.isFinite(x) && Number.isFinite(y) ? { x, y, p } : null;
+    })
+    .filter((c): c is { x: number; y: number; p: typeof pts[0] } => c !== null);
+
+  if (coords.length < 2) return null;
+
+  // SVG path for the line
+  const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x},${c.y}`).join(' ');
+  // SVG path for the filled area (closes at bottom)
+  const plotBottom = PAD_TOP + plotH;
+  const areaPath = `${linePath} L${coords[coords.length - 1].x},${plotBottom} L${coords[0].x},${plotBottom} Z`;
+
+  // % change: first weekly point → last weekly point
+  const firstPrice = pts[0].price;
+  const lastPrice = pts[pts.length - 1].price;
+  const pctChange = firstPrice > 0 ? ((lastPrice - firstPrice) / firstPrice) * 100 : 0;
+  const changeColor = pctChange >= 0 ? '#4ADE80' : '#F87171';
+  const changeArrow = pctChange >= 0 ? '↑' : '↓';
+
+  // X-axis: 4 evenly-spaced labels
+  const xLabelIndices = [...new Set([0, Math.floor(n / 3), Math.floor(2 * n / 3), n - 1])];
+
+  // Y-axis: 3 grid lines
+  const yGridLevels = [0.25, 0.5, 0.75];
+
+  const lastCoord = coords[coords.length - 1];
 
   return (
     <View style={chartStyles.card}>
@@ -90,43 +157,78 @@ function PriceBarChart({
         <Text style={chartStyles.period}>{periodLabel}</Text>
       </View>
 
-      {/* Bars */}
-      <View style={[chartStyles.barsContainer, { height: BAR_HEIGHT }]}>
-        {points.map((p, i) => {
-          const heightPct = Math.min(1, Math.max(0.08, p.price / maxPrice));
-          const barH = BAR_HEIGHT * heightPct;
+      {/* Price + change row */}
+      <View style={chartStyles.priceRow}>
+        <Text style={chartStyles.currentPrice}>{Math.round(lastPrice)} RON/m³</Text>
+        <View style={[chartStyles.changeBadge, {
+          backgroundColor: changeColor + '22',
+          borderColor: changeColor + '66',
+        }]}>
+          <Text style={[chartStyles.changeBadgeText, { color: changeColor }]}>
+            {changeArrow}  {Math.abs(pctChange).toFixed(1)}%
+          </Text>
+        </View>
+      </View>
+
+      {/* Species selector tabs */}
+      <View style={chartStyles.speciesTabs}>
+        {series.map((s, idx) => {
+          const tabColor = getSpeciesColor(s.species);
+          const isActive = idx === safeIdx;
           return (
-            <LinearGradient
-              key={i}
-              colors={['#CCFF0050', '#CCFF0008']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={[chartStyles.bar, { height: barH }]}
-            />
+            <Pressable
+              key={s.species}
+              onPress={() => setSelectedIdx(idx)}
+              style={[
+                chartStyles.speciesTab,
+                isActive && { backgroundColor: tabColor + '28', borderColor: tabColor },
+              ]}
+            >
+              <Text style={[
+                chartStyles.speciesTabText,
+                isActive && { color: tabColor, fontWeight: '700' },
+              ]}>
+                {s.species.substring(0, 2).toUpperCase()}
+              </Text>
+            </Pressable>
           );
         })}
       </View>
 
-      {/* Date axis — 5 labels */}
-      <View style={chartStyles.dateAxis}>
-        {uniqueIndices.map((idx) => (
-          <Text key={idx} style={chartStyles.dateLabel}>
-            {formatChartDate(points[idx]?.date)}
-          </Text>
-        ))}
-      </View>
+      {/* SVG chart */}
+      <Svg width={chartW} height={chartH}>
+        {/* Y-axis grid lines + labels */}
+        {yGridLevels.map((lvl) => {
+          const y = PAD_TOP + plotH - lvl * plotH;
+          const priceAtLvl = minY + lvl * priceRange;
+          return [
+            <Line key={`grid-${lvl}`} x1={PAD_LEFT} y1={y} x2={PAD_LEFT + plotW} y2={y}
+              stroke="#FFFFFF0D" strokeWidth={1} />,
+            <SvgText key={`ylabel-${lvl}`} x={PAD_LEFT - 4} y={y + 4}
+              fontSize={9} fill="#4B5563" textAnchor="end">
+              {Math.round(priceAtLvl)}
+            </SvgText>,
+          ];
+        })}
 
-      {/* Legend */}
-      {species.length > 0 && (
-        <View style={chartStyles.legend}>
-          {species.slice(0, 4).map((s) => (
-            <View key={s} style={chartStyles.legendItem}>
-              <View style={[chartStyles.legendDot, { backgroundColor: getSpeciesColor(s) }]} />
-              <Text style={chartStyles.legendText}>{s}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+        {/* Area fill */}
+        <Path d={areaPath} fill={color} fillOpacity={0.12} />
+
+        {/* Line */}
+        <Path d={linePath} fill="none" stroke={color} strokeWidth={2}
+          strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* End dot */}
+        <Circle cx={lastCoord.x} cy={lastCoord.y} r={4} fill={color} />
+
+        {/* X-axis date labels */}
+        {xLabelIndices.map((idx) => (
+          <SvgText key={idx} x={xScale(idx)} y={chartH - 2}
+            fontSize={9} fill="#4B5563" textAnchor="middle">
+            {formatChartDate(pts[idx]?.date)}
+          </SvgText>
+        ))}
+      </Svg>
     </View>
   );
 }
@@ -167,26 +269,51 @@ const chartStyles = StyleSheet.create({
     fontWeight: '500',
     color: Colors.textMuted,
   },
-  barsContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 2,
-    overflow: 'hidden',
+  emptyText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: 24,
   },
-  bar: {
-    flex: 1,
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 2,
-    overflow: 'hidden',
-  },
-  dateAxis: {
+  priceRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  dateLabel: {
-    fontSize: 9,
+  currentPrice: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.text,
+    letterSpacing: -0.5,
+  },
+  changeBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  changeBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  speciesTabs: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  speciesTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: 'transparent',
+  },
+  speciesTabText: {
+    fontSize: 11,
     fontWeight: '500',
     color: Colors.textMuted,
+    letterSpacing: 0.5,
   },
   legend: {
     flexDirection: 'row',
@@ -339,9 +466,9 @@ export default function MarketScreen() {
             </View>
           )}
 
-          {/* Bar chart */}
+          {/* Line chart */}
           {data && (
-            <PriceBarChart
+            <PriceLineChart
               data={data.priceTrendsBySpecies}
               periodLabel={periodLabel}
             />
