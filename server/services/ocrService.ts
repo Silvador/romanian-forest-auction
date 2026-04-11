@@ -222,19 +222,15 @@ Return ONLY valid JSON, no other text.`,
         content: `Extract APV data from this Romanian forestry permit text:\n\n${text.slice(0, 12000)}`,
       },
     ],
-    max_tokens: 2500,
+    max_tokens: 4096,
     temperature: 0.1,
+    response_format: { type: "json_object" },
   });
 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No response from OpenAI");
 
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("Could not parse JSON from response");
-
-  // Reuse the same normalization logic by faking the image extraction path
-  // We inject the parsed JSON as if it came from the vision model
-  const extracted = JSON.parse(jsonMatch[0]);
+  const extracted = JSON.parse(content);
   return normalizeExtracted(extracted);
 }
 
@@ -450,8 +446,9 @@ Return ONLY valid JSON, no other text.`,
           ],
         },
       ],
-      max_tokens: 2500,
+      max_tokens: 4096,
       temperature: 0.1,
+      response_format: { type: "json_object" },
     });
 
     const content = response.choices[0]?.message?.content;
@@ -459,12 +456,7 @@ Return ONLY valid JSON, no other text.`,
       throw new Error("No response from OpenAI");
     }
 
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("Could not parse JSON from response");
-    }
-
-    const extracted = JSON.parse(jsonMatch[0]);
+    const extracted = JSON.parse(content);
     console.log(`[OCR] Extracted raw species: ${extracted.species}`);
     return normalizeExtracted(extracted, content);
   } catch (error) {
