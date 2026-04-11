@@ -7,6 +7,7 @@ import { insertAuctionSchema, insertBidSchema, Auction, Bid } from "@shared/sche
 import { getDocument, setDocument } from "./services/firestoreRestClient";
 import { extractApvData } from "./services/ocrService";
 import { emailService } from "./services/emailService";
+import { resolveApvGeolocation } from "./services/apvGeolocResolver";
 import {
   validateBid,
   processProxyBid,
@@ -1734,6 +1735,290 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error getting scheduler status:", error);
       res.status(500).json({ error: "Failed to get scheduler status" });
+    }
+  });
+
+  // ─── APV Geolocation endpoints ──────────────────────────────────────────────
+
+  // POST /api/auctions/:id/resolve-apv-location
+  // Triggers automatic APV geolocation resolution via Inspectorul Pădurii API.
+  // Auth: forest_owner only. Idempotent: returns cached result if still fresh.
+  app.post("/api/auctions/:id/resolve-apv-location", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Database not configured" });
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const auctionId = req.params.id;
+      const auctionDoc = await db.collection("auctions").doc(auctionId).get();
+      if (!auctionDoc.exists) return res.status(404).json({ error: "Auction not found" });
+
+      const auction = auctionDoc.data()!;
+      if (auction.ownerId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+      // Idempotency: return cached result if still fresh
+      if (auction.apvGeolocationId) {
+        const geoDoc = await db.collection("apvGeolocations").doc(auction.apvGeolocationId).get();
+        if (geoDoc.exists) {
+          const geoData = geoDoc.data()!;
+          const freshUntil = geoData.dataFreshUntil?.toMillis?.() ?? 0;
+          if (freshUntil > Date.now()) {
+            console.log(`[RESOLVE-APV] Returning cached result for auction ${auctionId}`);
+            return res.json({ cached: true, ...geoData, geolocationDocId: auction.apvGeolocationId });
+          }
+        }
+      }
+
+      // Acquire lock — prevent duplicate concurrent resolutions
+      const lockId = `lock_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const existingLock = auction.resolutionLockId;
+      const lockStarted = auction.apvResolutionStartedAt ?? 0;
+      const lockAge = Date.now() - lockStarted;
+      const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+      if (existingLock && lockAge < LOCK_TIMEOUT_MS) {
+        return res.status(409).json({ error: "Resolution already in progress", lockAge });
+      }
+
+      // Set lock
+      await db.collection("auctions").doc(auctionId).update({
+        resolutionLockId: lockId,
+        apvResolutionStartedAt: Date.now(),
+        apvLocationResolutionStatus: "resolving",
+      });
+
+      // Build OCR data from auction fields
+      const ocrData = {
+        permitCode: auction.apvPermitCode,
+        forestCompany: auction.apvForestCompany,
+        uaLocation: auction.apvUaLocation,
+        upLocation: auction.apvUpLocation,
+        grossVolume: auction.apvGrossVolume,
+        netVolume: auction.apvNetVolume,
+        treatmentType: auction.apvTreatmentType,
+        productType: auction.apvProductType,
+        permitNumber: auction.apvPermitNumber,
+        ocrConfidence: req.body.ocrConfidence ?? undefined,
+        apvWorkflowStatus: auction.apvWorkflowStatusRaw,
+      };
+
+      const issueDate = auction.apvDateOfMarking;
+
+      const result = await resolveApvGeolocation(db, auctionId, ocrData, issueDate);
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[RESOLVE-APV] Unhandled error:", error?.message ?? error, error?.stack?.split('\n').slice(0, 3).join(' | '));
+      // Clear lock on error
+      try {
+        if (db) {
+          await db.collection("auctions").doc(req.params.id).update({
+            resolutionLockId: admin.firestore.FieldValue.delete(),
+            apvResolutionStartedAt: admin.firestore.FieldValue.delete(),
+            apvLocationResolutionStatus: "provider_error",
+          });
+        }
+      } catch (_) {}
+      res.status(500).json({ error: error.message || "Resolution failed" });
+    }
+  });
+
+  // POST /api/auctions/:id/attest-apv-rights
+  // Seller confirms they hold the rights for an APV with warnings.
+  app.post("/api/auctions/:id/attest-apv-rights", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Database not configured" });
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const auctionId = req.params.id;
+      const auctionDoc = await db.collection("auctions").doc(auctionId).get();
+      if (!auctionDoc.exists) return res.status(404).json({ error: "Auction not found" });
+
+      const auction = auctionDoc.data()!;
+      if (auction.ownerId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+      const geolocationId = auction.apvGeolocationId;
+      if (!geolocationId) return res.status(400).json({ error: "No geolocation record found for this auction" });
+
+      const ATTESTATION_TEXT_V1 = "Confirm că dețin dreptul legal de exploatare pentru acest APV și că nu există alte contracte active pentru aceeași parcelă.";
+
+      const attestation = {
+        accepted: true,
+        attestationTextVersion: 'v1',
+        attestationText: ATTESTATION_TEXT_V1,
+        acceptedAt: admin.firestore.Timestamp.now(),
+      };
+
+      await db.collection("apvGeolocations").doc(geolocationId).update({
+        sellerConfirmedRights: true,
+        sellerAttestation: attestation,
+      });
+
+      res.json({ success: true, attestation });
+    } catch (error: any) {
+      console.error("[ATTEST-APV] Error:", error);
+      res.status(500).json({ error: error.message || "Attestation failed" });
+    }
+  });
+
+  // GET /api/apv-geolocations/review-queue (admin only)
+  // Returns all geolocations that need manual review, with full comparison data.
+  app.get("/api/apv-geolocations/review-queue", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Database not configured" });
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userDoc = await db.collection("users").doc(decodedToken.uid).get();
+      if (!userDoc.exists || userDoc.data()?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      // Query for docs needing review (single-field filters to avoid composite index requirement)
+      const [locationReviewSnap, policyReviewSnap] = await Promise.all([
+        db.collection("apvGeolocations").where("locationReviewRequired", "==", true).get(),
+        db.collection("apvGeolocations").where("policyReviewRequired", "==", true).get(),
+      ]);
+
+      // Merge, deduplicate, and filter active-only in JS
+      const docMap = new Map<string, admin.firestore.DocumentData>();
+      for (const doc of [...locationReviewSnap.docs, ...policyReviewSnap.docs]) {
+        if (doc.data().isActive) docMap.set(doc.id, { id: doc.id, ...doc.data() });
+      }
+
+      const items = Array.from(docMap.values()).sort((a, b) =>
+        (b.savedAt?.toMillis?.() ?? 0) - (a.savedAt?.toMillis?.() ?? 0)
+      );
+
+      res.json({ count: items.length, items });
+    } catch (error: any) {
+      console.error("[REVIEW-QUEUE] Error:", error);
+      res.status(500).json({ error: error.message || "Failed to load review queue" });
+    }
+  });
+
+  // POST /api/apv-geolocations/:id/review-decision (admin only)
+  // Admin approves or rejects a geolocation review case.
+  app.post("/api/apv-geolocations/:id/review-decision", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Database not configured" });
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userDoc = await db.collection("users").doc(decodedToken.uid).get();
+      if (!userDoc.exists || userDoc.data()?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const schema = z.object({
+        decision: z.enum(['approved', 'rejected']),
+        notes: z.string().optional(),
+        overrideJustification: z.string().optional(),
+      });
+      const parseResult = schema.safeParse(req.body);
+      if (!parseResult.success) return res.status(400).json(parseResult.error.issues);
+
+      const { decision, notes, overrideJustification } = parseResult.data;
+      const geoDocId = req.params.id;
+
+      const geoDoc = await db.collection("apvGeolocations").doc(geoDocId).get();
+      if (!geoDoc.exists) return res.status(404).json({ error: "Geolocation record not found" });
+
+      const geoData = geoDoc.data()!;
+
+      const reviewUpdate = {
+        'review.reviewDecision': decision,
+        'review.reviewedBy': decodedToken.uid,
+        'review.reviewedAt': admin.firestore.Timestamp.now(),
+        'review.reviewNotes': notes ?? null,
+        'review.overrideJustification': overrideJustification ?? null,
+        locationReviewRequired: false,
+        policyReviewRequired: decision === 'approved' ? false : geoData.policyReviewRequired,
+      };
+
+      await db.collection("apvGeolocations").doc(geoDocId).update(reviewUpdate);
+
+      // If approved, update auction to enable publishing
+      if (decision === 'approved') {
+        const auctionId = geoData.auctionId;
+        if (auctionId) {
+          const updateData: Record<string, unknown> = {
+            apvListingEligibility: 'eligible',
+          };
+          if (geoData.publicApvPoint) {
+            updateData.publicApvPoint = geoData.publicApvPoint;
+            updateData.gpsCoordinates = geoData.publicApvPoint;
+            updateData.displayLocationSource = 'public_apv_point';
+          }
+          await db.collection("auctions").doc(auctionId).update(updateData);
+        }
+      }
+
+      res.json({ success: true, decision, geoDocId });
+    } catch (error: any) {
+      console.error("[REVIEW-DECISION] Error:", error);
+      res.status(500).json({ error: error.message || "Review decision failed" });
+    }
+  });
+
+  // PUT /api/auctions/:id/seller-pin
+  // Seller manually sets/updates their display pin on the map.
+  app.put("/api/auctions/:id/seller-pin", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Database not configured" });
+
+      const token = req.headers.authorization?.split('Bearer ')[1];
+      if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const userId = decodedToken.uid;
+
+      const auctionId = req.params.id;
+      const auctionDoc = await db.collection("auctions").doc(auctionId).get();
+      if (!auctionDoc.exists) return res.status(404).json({ error: "Auction not found" });
+
+      const auction = auctionDoc.data()!;
+      if (auction.ownerId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+      const schema = z.object({
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+      });
+      const parseResult = schema.safeParse(req.body);
+      if (!parseResult.success) return res.status(400).json(parseResult.error.issues);
+
+      const { lat, lng } = parseResult.data;
+      const sellerDisplayPin = { lat, lng };
+
+      // displayLocationSource: public_apv_point takes precedence if already set
+      const displayLocationSource = auction.publicApvPoint
+        ? 'public_apv_point'
+        : 'seller_pin';
+
+      await db.collection("auctions").doc(auctionId).update({
+        sellerDisplayPin,
+        displayLocationSource,
+        // Only write gpsCoordinates from seller pin if no public APV point exists
+        ...(!auction.publicApvPoint && { gpsCoordinates: sellerDisplayPin }),
+      });
+
+      res.json({ success: true, sellerDisplayPin, displayLocationSource });
+    } catch (error: any) {
+      console.error("[SELLER-PIN] Error:", error);
+      res.status(500).json({ error: error.message || "Failed to update seller pin" });
     }
   });
 

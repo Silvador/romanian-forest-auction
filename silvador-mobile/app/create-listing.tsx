@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import { LocationPickerSection } from '../components/LocationPickerSection';
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { Colors } from '../constants/colors';
@@ -25,7 +26,7 @@ import { speciesTypes } from '../constants/species';
 import { StepIndicator } from '../components/StepIndicator';
 import { useToast } from '../components/Toast';
 import { SearchableSelect } from '../components/SearchableSelect';
-import { publishAuction, createDraftAuction, extractApv, checkPermitExists } from '../lib/api';
+import { publishAuction, createDraftAuction, extractApv, checkPermitExists, resolveApvLocation, setSellerPin, attestApvRights, updateAuction, type ApvLocationResult } from '../lib/api';
 import { formatEuro } from '../lib/formatters';
 import { useMarketAnalytics } from '../hooks/useMarket';
 import { storage, auth } from '../lib/firebase';
@@ -54,6 +55,9 @@ interface FormData {
   apvFile: DocumentFile | null;
   apvData: Record<string, any> | null;
   documents: DocumentFile[];
+  // APV geolocation
+  sellerPin: { lat: number; lng: number } | null;
+  attestationAccepted: boolean;
 }
 
 const INITIAL_FORM: FormData = {
@@ -70,6 +74,8 @@ const INITIAL_FORM: FormData = {
   apvFile: null,
   apvData: null,
   documents: [],
+  sellerPin: null,
+  attestationAccepted: false,
 };
 
 export default function CreateListingScreen() {
@@ -78,6 +84,10 @@ export default function CreateListingScreen() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
+  const [draftAuctionId, setDraftAuctionId] = useState<string | null>(null);
+  const [locationResolution, setLocationResolution] = useState<ApvLocationResult | null>(null);
+  const [locationResolving, setLocationResolving] = useState(false);
+  const resolutionAbortRef = useRef<boolean>(false);
 
   const stepValid = useMemo(() => {
     if (step === 1) {
@@ -209,6 +219,7 @@ export default function CreateListingScreen() {
       if (apv.dryTreesCount) payload.apvDryTreesCount = Number(apv.dryTreesCount);
       if (apv.dryTreesVolume) payload.apvDryTreesVolume = Number(apv.dryTreesVolume);
       if (apv.exploitationDeadline) payload.apvExploitationDeadline = String(apv.exploitationDeadline);
+      if (apv.apvWorkflowStatusRaw) payload.apvWorkflowStatusRaw = String(apv.apvWorkflowStatusRaw);
     }
 
     return payload;
@@ -233,7 +244,12 @@ export default function CreateListingScreen() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      await createDraftAuction(await buildPayloadWithDocs());
+      const payload = await buildPayloadWithDocs();
+      if (draftAuctionId) {
+        await updateAuction(draftAuctionId, payload as any);
+      } else {
+        await createDraftAuction(payload as any);
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.show({
         type: 'success',
@@ -254,9 +270,38 @@ export default function CreateListingScreen() {
 
   const handlePublish = async () => {
     if (submitting) return;
+
+    // Block publish if policy review is required and attestation not accepted
+    const eligibility = locationResolution?.listingEligibility;
+    if (eligibility === 'review_before_publish') {
+      Alert.alert(
+        'Publicare blocata temporar',
+        'Locatia APV necesita verificare manuala. Poti salva ca ciorna si vei fi notificat cand este aprobata.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    if (eligibility === 'eligible_with_warning' && !form.attestationAccepted) {
+      Alert.alert(
+        'Confirmare necesara',
+        'Trebuie sa confirmi ca detii dreptul de exploatare pentru a putea publica.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await publishAuction(await buildPayloadWithDocs());
+      const payload = { ...await buildPayloadWithDocs(), status: 'upcoming' as const };
+      if (draftAuctionId) {
+        await updateAuction(draftAuctionId, payload as any);
+        // If attestation was accepted, record it
+        if (form.attestationAccepted && draftAuctionId) {
+          attestApvRights(draftAuctionId).catch(() => {});
+        }
+      } else {
+        await publishAuction(payload as Record<string, unknown>);
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.show({
         type: 'success',
@@ -295,8 +340,27 @@ export default function CreateListingScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {step === 1 && <Step1 form={form} setForm={setForm} />}
-          {step === 2 && <Step2 form={form} setForm={setForm} />}
+          {step === 1 && (
+            <Step1
+              form={form}
+              setForm={setForm}
+              onDraftCreated={(id) => setDraftAuctionId(id || null)}
+              onLocationResolving={setLocationResolving}
+              onLocationResolved={setLocationResolution}
+              abortRef={resolutionAbortRef}
+            />
+          )}
+          {step === 2 && (
+            <Step2
+              form={form}
+              setForm={setForm}
+              draftAuctionId={draftAuctionId}
+              locationResolution={locationResolution}
+              locationResolving={locationResolving}
+              onSellerPinSet={(pin) => setForm({ ...form, sellerPin: pin })}
+              onAttestationChange={(v) => setForm({ ...form, attestationAccepted: v })}
+            />
+          )}
           {step === 3 && <Step3 form={form} setForm={setForm} />}
         </ScrollView>
 
@@ -352,9 +416,17 @@ export default function CreateListingScreen() {
 function Step1({
   form,
   setForm,
+  onDraftCreated,
+  onLocationResolving,
+  onLocationResolved,
+  abortRef,
 }: {
   form: FormData;
   setForm: (f: FormData) => void;
+  onDraftCreated: (id: string) => void;
+  onLocationResolving: (v: boolean) => void;
+  onLocationResolved: (result: ApvLocationResult | null) => void;
+  abortRef: React.MutableRefObject<boolean>;
 }) {
   const [extracting, setExtracting] = useState(false);
 
@@ -420,7 +492,7 @@ function Step1({
         ? `Lot APV ${(data as any).permitNumber} — ${(data as any).species || ''}`
         : '';
 
-      setForm({
+      const updatedForm = {
         ...form,
         apvFile: file,
         apvData: data as Record<string, any>,
@@ -428,7 +500,8 @@ function Step1({
         volumeM3: (data as any).volumeM3 > 0 ? String((data as any).volumeM3) : form.volumeM3,
         speciesBreakdown:
           apvSpecies && apvSpecies.length > 0 ? apvSpecies : form.speciesBreakdown,
-      });
+      };
+      setForm(updatedForm);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -448,6 +521,61 @@ function Step1({
           // permit check is non-blocking
         }
       }
+
+      // Create a draft immediately so we have an ID for geolocation resolution
+      if ((data as any).permitCode) {
+        try {
+          abortRef.current = false;
+          const draft = await createDraftAuction({
+            apvPermitCode: String((data as any).permitCode),
+            apvPermitNumber: (data as any).permitNumber ? String((data as any).permitNumber) : undefined,
+            apvForestCompany: (data as any).forestCompany ? String((data as any).forestCompany) : undefined,
+            apvUaLocation: (data as any).uaLocation ? String((data as any).uaLocation) : undefined,
+            apvUpLocation: (data as any).upLocation ? String((data as any).upLocation) : undefined,
+            apvGrossVolume: (data as any).grossVolume ? Number((data as any).grossVolume) : undefined,
+            apvNetVolume: (data as any).netVolume ? Number((data as any).netVolume) : undefined,
+            apvTreatmentType: (data as any).treatmentType ? String((data as any).treatmentType) : undefined,
+            apvProductType: (data as any).productType ? String((data as any).productType) : undefined,
+            apvDateOfMarking: (data as any).dateOfMarking ? String((data as any).dateOfMarking) : undefined,
+            apvWorkflowStatusRaw: (data as any).apvWorkflowStatusRaw ? String((data as any).apvWorkflowStatusRaw) : undefined,
+          } as any);
+
+          const id = (draft as any).id;
+          if (id) {
+            onDraftCreated(id);
+
+            // Fire location resolution in background
+            onLocationResolving(true);
+            resolveApvLocation(id, (data as any).ocrConfidence ?? 'medium')
+              .then((result) => {
+                if (!abortRef.current) onLocationResolved(result);
+              })
+              .catch((err) => {
+                console.warn('[APV-RESOLVE] Resolution failed:', err);
+                if (!abortRef.current) {
+                  onLocationResolved({
+                    locationResolutionStatus: 'provider_error',
+                    notFoundSubtype: null,
+                    matchScore: 0,
+                    operationalStatus: 'unknown',
+                    listingEligibility: 'eligible',
+                    eligibilityReasons: [],
+                    publicApvPoint: null,
+                    primaryRampPoints: null,
+                    county: null,
+                    geolocationDocId: null,
+                  });
+                }
+              })
+              .finally(() => {
+                if (!abortRef.current) onLocationResolving(false);
+              });
+          }
+        } catch (draftErr) {
+          // Draft creation failure is non-blocking — resolution simply won't run
+          console.warn('[APV-RESOLVE] Draft creation failed, skipping resolution:', draftErr);
+        }
+      }
     } catch (err: any) {
       console.error('[OCR] error object:', JSON.stringify(err), err);
       const msg = err?.message || err?.error || (typeof err === 'string' ? err : JSON.stringify(err));
@@ -462,7 +590,11 @@ function Step1({
   };
 
   const resetScan = () => {
-    setForm({ ...form, apvFile: null, apvData: null });
+    abortRef.current = true;
+    setForm({ ...form, apvFile: null, apvData: null, sellerPin: null, attestationAccepted: false });
+    onDraftCreated(''); // signals parent to clear draft ID — empty string = no draft
+    onLocationResolved(null);
+    onLocationResolving(false);
   };
 
   return (
@@ -545,9 +677,19 @@ function Step1({
 function Step2({
   form,
   setForm,
+  draftAuctionId,
+  locationResolution,
+  locationResolving,
+  onSellerPinSet,
+  onAttestationChange,
 }: {
   form: FormData;
   setForm: (f: FormData) => void;
+  draftAuctionId: string | null;
+  locationResolution: ApvLocationResult | null;
+  locationResolving: boolean;
+  onSellerPinSet: (pin: { lat: number; lng: number }) => void;
+  onAttestationChange: (v: boolean) => void;
 }) {
 const { data: marketData } = useMarketAnalytics('30d');
 
@@ -749,7 +891,16 @@ const { data: marketData } = useMarketAnalytics('30d');
         )}
       </Field>
 
-      {/* GPS — hidden until APV location extraction is implemented */}
+      {/* APV Location */}
+      <LocationPickerSection
+        resolution={locationResolution}
+        resolving={locationResolving}
+        sellerPin={form.sellerPin}
+        attestationAccepted={form.attestationAccepted}
+        draftAuctionId={draftAuctionId}
+        onSellerPinSet={onSellerPinSet}
+        onAttestationChange={onAttestationChange}
+      />
 
       {/* Description */}
       <Field label="Descriere (optional)">
@@ -1479,4 +1630,5 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.5,
   },
+
 });

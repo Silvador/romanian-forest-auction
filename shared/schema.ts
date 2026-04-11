@@ -218,6 +218,16 @@ export interface Auction {
   apvDryTreesCount?: number;
   apvDryTreesVolume?: number;
   apvExploitationDeadline?: string;
+
+  // APV Geolocation fields
+  publicApvPoint?: { lat: number; lng: number };       // from Inspectorul Pădurii (immutable source)
+  sellerDisplayPin?: { lat: number; lng: number };      // from manual map tap (seller source)
+  displayLocationSource?: 'public_apv_point' | 'seller_pin' | 'none'; // computed display selector
+  apvLocationResolutionStatus?: string;
+  apvListingEligibility?: string;
+  apvGeolocationId?: string;
+  apvResolutionStartedAt?: number;                     // ms timestamp — watchdog for stuck resolving state
+  resolutionLockId?: string;                           // per-auction mutex for resolver
 }
 
 export const insertAuctionSchema = z.object({
@@ -299,6 +309,14 @@ export const insertAuctionSchema = z.object({
   apvDryTreesCount: z.number().nullable().optional(),
   apvDryTreesVolume: z.number().nullable().optional(),
   apvExploitationDeadline: z.string().optional(),
+
+  // APV Geolocation
+  publicApvPoint: z.object({ lat: z.number(), lng: z.number() }).nullable().optional(),
+  sellerDisplayPin: z.object({ lat: z.number(), lng: z.number() }).nullable().optional(),
+  displayLocationSource: z.enum(['public_apv_point', 'seller_pin', 'none']).optional(),
+  apvLocationResolutionStatus: z.string().nullable().optional(),
+  apvListingEligibility: z.string().nullable().optional(),
+  apvGeolocationId: z.string().nullable().optional(),
 });
 
 export type InsertAuction = z.infer<typeof insertAuctionSchema>;
@@ -415,6 +433,8 @@ export interface ApvExtractionResult {
   dryTreesCount?: number;
   dryTreesVolume?: number;
   exploitationDeadline?: string;
+  ocrConfidence?: 'high' | 'medium' | 'low';
+  apvWorkflowStatusRaw?: string; // raw OCR extraction — normalized to ApvWorkflowStatus enum in resolver
 }
 
 // Price Alert schema (Phase 3)

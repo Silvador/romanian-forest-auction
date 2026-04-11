@@ -7,6 +7,7 @@ import cron from "node-cron";
 import admin from "firebase-admin";
 import { AuctionLifecycleManager } from "./auctionLifecycleManager";
 import { getIO } from "../websocket";
+import { resolveApvGeolocation } from "./apvGeolocResolver";
 
 export class AuctionScheduler {
   private lifecycleManager: AuctionLifecycleManager;
@@ -64,6 +65,28 @@ export class AuctionScheduler {
 
     this.cronJobs.push(alertJob);
 
+    // APV retry sweep — every 5 minutes
+    const apvRetryJob = cron.schedule("*/5 * * * *", async () => {
+      try {
+        await this.sweepApvRetries();
+      } catch (error) {
+        console.error("[SCHEDULER] Error in APV retry sweep:", error);
+      }
+    });
+
+    this.cronJobs.push(apvRetryJob);
+
+    // Stale lock recovery — every 10 minutes
+    const staleLockJob = cron.schedule("*/10 * * * *", async () => {
+      try {
+        await this.recoverStaleApvLocks();
+      } catch (error) {
+        console.error("[SCHEDULER] Error in stale lock recovery:", error);
+      }
+    });
+
+    this.cronJobs.push(staleLockJob);
+
     // Run lifecycle check immediately on startup
     this.runImmediateLifecycleCheck();
 
@@ -72,6 +95,8 @@ export class AuctionScheduler {
     console.log("[SCHEDULER] - Lifecycle check: every 1 minute");
     console.log("[SCHEDULER] - Summary report: every 5 minutes");
     console.log("[SCHEDULER] - Price alert check: every 15 minutes");
+    console.log("[SCHEDULER] - APV retry sweep: every 5 minutes");
+    console.log("[SCHEDULER] - Stale lock recovery: every 10 minutes");
   }
 
   /**
@@ -133,6 +158,116 @@ export class AuctionScheduler {
    */
   getLifecycleManager(): AuctionLifecycleManager {
     return this.lifecycleManager;
+  }
+
+  /**
+   * Sweep APV geolocation records that are due for retry.
+   * Runs every 5 minutes. Processes provider_error and index_lag retries.
+   */
+  private async sweepApvRetries(): Promise<void> {
+    const now = admin.firestore.Timestamp.now();
+
+    // Query by nextRetryAt only (single inequality; isActive filtered in JS to avoid composite index)
+    const retrySnap = await this.db.collection("apvGeolocations")
+      .where("nextRetryAt", "<=", now)
+      .get();
+
+    const activeDocs = retrySnap.docs.filter(d => d.data().isActive === true);
+    if (activeDocs.length === 0) return;
+
+    console.log(`[APV-RETRY] Found ${activeDocs.length} record(s) due for retry`);
+
+    for (const doc of activeDocs) {
+      const data = doc.data();
+      const auctionId = data.auctionId;
+      const apvNumber = data.apvNumber;
+
+      if (!auctionId || !apvNumber) continue;
+
+      // Check if another process is already resolving this auction
+      const auctionDoc = await this.db.collection("auctions").doc(auctionId).get();
+      if (!auctionDoc.exists) continue;
+
+      const auctionData = auctionDoc.data()!;
+      const lockAge = Date.now() - (auctionData.apvResolutionStartedAt ?? 0);
+      if (auctionData.resolutionLockId && lockAge < 5 * 60 * 1000) {
+        console.log(`[APV-RETRY] Skipping auction ${auctionId} — lock held`);
+        continue;
+      }
+
+      const retryCount = data.retryCount ?? 0;
+      const maxRetries = data.maxRetries ?? 3;
+      const retryExpiresAt = data.retryExpiresAt?.toMillis?.() ?? Infinity;
+
+      // Expiry check
+      if (Date.now() > retryExpiresAt) {
+        console.log(`[APV-RETRY] retryExpiresAt passed for auction ${auctionId} — stopping retries`);
+        await doc.ref.update({ nextRetryAt: null, retryReason: 'expired' });
+        continue;
+      }
+
+      // Max retries guard
+      if (retryCount >= maxRetries) {
+        console.log(`[APV-RETRY] maxRetries (${maxRetries}) reached for auction ${auctionId} — stopping retries`);
+        await doc.ref.update({ nextRetryAt: null, retryReason: 'max_retries_reached' });
+        continue;
+      }
+
+      try {
+        console.log(`[APV-RETRY] Retrying geolocation for auction ${auctionId} APV ${apvNumber} (attempt ${retryCount + 1}/${maxRetries})`);
+
+        // Build OCR data from auction fields (include raw workflow status for classifier)
+        const ocrData = {
+          permitCode: auctionData.apvPermitCode,
+          forestCompany: auctionData.apvForestCompany,
+          uaLocation: auctionData.apvUaLocation,
+          upLocation: auctionData.apvUpLocation,
+          grossVolume: auctionData.apvGrossVolume,
+          netVolume: auctionData.apvNetVolume,
+          treatmentType: auctionData.apvTreatmentType,
+          productType: auctionData.apvProductType,
+          permitNumber: auctionData.apvPermitNumber,
+          apvWorkflowStatus: auctionData.apvWorkflowStatusRaw,
+        };
+
+        await resolveApvGeolocation(this.db, auctionId, ocrData, auctionData.apvDateOfMarking, { previousRetryCount: retryCount });
+
+        console.log(`[APV-RETRY] Retry complete for auction ${auctionId}`);
+      } catch (err) {
+        console.error(`[APV-RETRY] Retry failed for auction ${auctionId}:`, err);
+      }
+    }
+  }
+
+  /**
+   * Clear stale resolution locks (set but not completed — crash recovery).
+   * A lock is stale if apvResolutionStartedAt is > 10 minutes ago.
+   */
+  private async recoverStaleApvLocks(): Promise<void> {
+    const TEN_MIN_AGO = Date.now() - 10 * 60 * 1000;
+
+    const staleSnap = await this.db.collection("auctions")
+      .where("resolutionLockId", "!=", null)
+      .get();
+
+    let recovered = 0;
+    for (const doc of staleSnap.docs) {
+      const data = doc.data();
+      const lockStarted = data.apvResolutionStartedAt ?? 0;
+      if (lockStarted < TEN_MIN_AGO) {
+        await doc.ref.update({
+          resolutionLockId: admin.firestore.FieldValue.delete(),
+          apvResolutionStartedAt: admin.firestore.FieldValue.delete(),
+          apvLocationResolutionStatus: "provider_error",
+        });
+        recovered++;
+        console.log(`[APV-LOCK] Recovered stale lock for auction ${doc.id}`);
+      }
+    }
+
+    if (recovered > 0) {
+      console.log(`[APV-LOCK] Recovered ${recovered} stale lock(s)`);
+    }
   }
 
   /**

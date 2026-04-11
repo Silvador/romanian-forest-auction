@@ -219,3 +219,42 @@ export function checkPermitExists(permitNumber: string) {
     `/api/auctions/check-permit/${encodeURIComponent(permitNumber)}`
   );
 }
+
+// --- APV Geolocation ---
+
+export interface ApvLocationResult {
+  locationResolutionStatus: string;
+  notFoundSubtype: string | null;
+  matchScore: number;
+  operationalStatus: string;
+  listingEligibility: string;
+  eligibilityReasons: string[];
+  publicApvPoint: { lat: number; lng: number } | null;
+  primaryRampPoints: Array<{ lat: number; lng: number }> | null;
+  county: string | null;
+  geolocationDocId: string | null;
+  cached?: boolean;
+}
+
+export function resolveApvLocation(auctionId: string, ocrConfidence?: string) {
+  return request<ApvLocationResult>(`/api/auctions/${auctionId}/resolve-apv-location`, {
+    method: 'POST',
+    body: JSON.stringify(ocrConfidence ? { ocrConfidence } : {}),
+  });
+}
+
+export function setSellerPin(auctionId: string, lat: number, lng: number) {
+  return request<{ success: boolean; sellerDisplayPin: { lat: number; lng: number }; displayLocationSource: string }>(
+    `/api/auctions/${auctionId}/seller-pin`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ lat, lng }),
+    }
+  );
+}
+
+export function attestApvRights(auctionId: string) {
+  return request<{ success: boolean }>(`/api/auctions/${auctionId}/attest-apv-rights`, {
+    method: 'POST',
+  });
+}

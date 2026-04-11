@@ -1,6 +1,14 @@
 import OpenAI from "openai";
 import pdfParse from "pdf-parse";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import * as fs from "fs";
+import * as path from "path";
+import * as crypto from "crypto";
+import * as os from "os";
 import type { ApvExtractionResult, SpeciesBreakdown, DendrometryEntry, SortVolumesEntry } from "@shared/schema";
+
+const execFileAsync = promisify(execFile);
 
 // Lazy initialization - only create OpenAI client when needed
 let openai: OpenAI | null = null;
@@ -187,8 +195,35 @@ const speciesMapping: Record<string, string> = {
 };
 
 /**
+ * Render the first page of a PDF to a JPEG using Ghostscript.
+ * Used as fallback for scanned/image-based PDFs where pdf-parse yields no text.
+ */
+async function renderPdfPageToImageBase64(pdfBuffer: Buffer): Promise<string> {
+  const tmpId = crypto.randomBytes(8).toString('hex');
+  const tmpPdf = path.join(os.tmpdir(), `apv_${tmpId}.pdf`);
+  const tmpImg = path.join(os.tmpdir(), `apv_${tmpId}.jpg`);
+
+  try {
+    fs.writeFileSync(tmpPdf, pdfBuffer);
+    await execFileAsync('gs', [
+      '-dBATCH', '-dNOPAUSE', '-dSAFER',
+      '-sDEVICE=jpeg', '-r150',
+      '-dFirstPage=1', '-dLastPage=1',
+      `-sOutputFile=${tmpImg}`,
+      tmpPdf,
+    ]);
+    const imgBuffer = fs.readFileSync(tmpImg);
+    return `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+  } finally {
+    try { fs.unlinkSync(tmpPdf); } catch {}
+    try { fs.unlinkSync(tmpImg); } catch {}
+  }
+}
+
+/**
  * Extract APV data from a PDF file (base64-encoded).
- * Parses the PDF text client-side, then sends to GPT-4o as a text prompt.
+ * First attempts text extraction via pdf-parse (works for digital PDFs).
+ * Falls back to Ghostscript image rendering + vision OCR for scanned PDFs.
  */
 export async function extractApvDataFromPdf(pdfBase64: string): Promise<ApvExtractionResult> {
   const client = getOpenAIClient();
@@ -200,7 +235,15 @@ export async function extractApvDataFromPdf(pdfBase64: string): Promise<ApvExtra
   const { text } = await pdfParse(pdfBuffer);
 
   if (!text || text.trim().length < 20) {
-    throw new Error('Could not extract text from PDF. Try photographing the document instead.');
+    console.log('[OCR-PDF] Scanned PDF detected (no extractable text) — rendering via Ghostscript');
+    try {
+      const imageBase64 = await renderPdfPageToImageBase64(pdfBuffer);
+      console.log('[OCR-PDF] Rendered PDF page to image — running vision OCR');
+      return await extractApvData(imageBase64);
+    } catch (renderErr: any) {
+      console.error('[OCR-PDF] Ghostscript rendering failed:', renderErr?.message ?? renderErr);
+      throw new Error('Could not extract text from PDF. Try photographing the document instead.');
+    }
   }
 
   console.log(`[OCR-PDF] Extracted ${text.length} chars from PDF`);
@@ -224,6 +267,7 @@ Use the same field names and extraction rules as for image-based APV documents:
 - rottenTreesCount, rottenTreesVolume (arbori putreziți)
 - dryTreesCount, dryTreesVolume (arbori uscați)
 - exploitationDeadline: year/date by which exploitation must be completed (look for "Termenul de exploatare")
+- ocrConfidence: Overall document quality. Return 'high' if this is a digital PDF with selectable text (no OCR needed), 'medium' if a clean printed scan, 'low' if a photo or degraded/handwritten document.
 
 CRITICAL: Extract ALL species from the species breakdown table into volumePerSpecies.
 For sortVolumesPerSpecies and dendrometryPerSpecies: scan ALL tables carefully — these are the most valuable fields.
@@ -357,6 +401,15 @@ function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvEx
 
   const speciesBreakdown = calculateSpeciesBreakdown(mappedSpecies, volumeM3, volumePerSpecies);
 
+  // Determine overall OCR confidence from document quality hint
+  // 'high' = digital PDF text extraction (no OCR needed)
+  // 'medium' = clean scan, OCR reliable
+  // 'low' = photo/degraded scan, OCR unreliable
+  let ocrConfidence: 'high' | 'medium' | 'low' | undefined;
+  if (extracted.ocrConfidence === 'high' || extracted.ocrConfidence === 'medium' || extracted.ocrConfidence === 'low') {
+    ocrConfidence = extracted.ocrConfidence;
+  }
+
   return {
     permitNumber: extracted.permitNumber || "",
     permitCode: extracted.permitCode || undefined,
@@ -397,6 +450,10 @@ function normalizeExtracted(extracted: Record<string, any>, rawText = ''): ApvEx
     dryTreesCount: safeInt(extracted.dryTreesCount),
     dryTreesVolume: extracted.dryTreesVolume ? normalizeNumber(extracted.dryTreesVolume) : undefined,
     exploitationDeadline: extracted.exploitationDeadline ? String(extracted.exploitationDeadline) : undefined,
+    ocrConfidence,
+    apvWorkflowStatusRaw: extracted.apvWorkflowStatus
+      ? String(extracted.apvWorkflowStatus).trim()
+      : undefined,
   };
 }
 
@@ -446,6 +503,8 @@ Extract the following information and return it as JSON:
 - dryTreesCount: Number of dry/dead trees (look for "arbori uscați" or "uscat")
 - dryTreesVolume: Volume of dry trees in m³
 - exploitationDeadline: Year or date by which exploitation must be completed (look for "Termenul de exploatare" or "Termenul de valorificare", return as YYYY or YYYY-MM-DD string)
+- apvWorkflowStatus: Internal SUMAL workflow status if explicitly visible in the document (e.g. 'CULES', 'VERIFICAT', 'APROBAT', 'AUTORIZAT', 'PREDAT', 'RETRAS'). Do not infer — only extract if clearly shown as a status label near the APV header. Return null if not visible.
+- ocrConfidence: Overall document quality. Return 'high' if this is a clear digital PDF with selectable text, 'medium' if a clean printed scan or photo, 'low' if the image is blurry, handwritten, or heavily degraded.
 
 IMPORTANT: Pay special attention to the species breakdown table. Extract EVERY species row with its volume. Do not summarize or skip species.
 For sortVolumesPerSpecies and dendrometryPerSpecies: scan ALL tables in the document carefully. These are the most economically important fields.
