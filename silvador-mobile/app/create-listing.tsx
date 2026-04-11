@@ -28,6 +28,8 @@ import { SearchableSelect } from '../components/SearchableSelect';
 import { publishAuction, createDraftAuction, extractApv, checkPermitExists } from '../lib/api';
 import { formatEuro } from '../lib/formatters';
 import { useMarketAnalytics } from '../hooks/useMarket';
+import { storage, auth } from '../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const TOTAL_STEPS = 3;
 
@@ -122,6 +124,33 @@ export default function CreateListingScreen() {
     }
   };
 
+  const uploadApvFile = async (file: DocumentFile) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not authenticated');
+
+    const timestamp = Date.now();
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `apv-documents/${userId}/${timestamp}_${safeFileName}`;
+
+    // Fetch the local file URI as a blob
+    const response = await fetch(file.uri);
+    const blob = await response.blob();
+
+    const storageRef = ref(storage, storagePath);
+    await uploadBytes(storageRef, blob);
+    const downloadUrl = await getDownloadURL(storageRef);
+
+    return {
+      id: `apv_${timestamp}`,
+      fileName: file.name,
+      storagePath: downloadUrl,
+      fileSize: file.size,
+      mimeType: file.mimeType,
+      uploadedAt: timestamp,
+      isApvDocument: true,
+    };
+  };
+
   const buildPayload = () => {
     const startTime = Date.now() + parseInt(form.startInMinutes, 10) * 60 * 1000;
     const durationMs =
@@ -196,11 +225,26 @@ export default function CreateListingScreen() {
     return payload;
   };
 
+  const buildPayloadWithDocs = async () => {
+    const payload = buildPayload();
+    if (form.apvFile) {
+      try {
+        const docMeta = await uploadApvFile(form.apvFile);
+        payload.documents = [docMeta];
+        payload.apvDocumentId = docMeta.id;
+      } catch (e) {
+        // Upload failed — proceed without document rather than blocking publish
+        console.warn('[create-listing] APV document upload failed:', e);
+      }
+    }
+    return payload;
+  };
+
   const handleSaveDraft = async () => {
     if (submitting) return;
     setSubmitting(true);
     try {
-      await createDraftAuction(buildPayload());
+      await createDraftAuction(await buildPayloadWithDocs());
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.show({
         type: 'success',
@@ -223,7 +267,7 @@ export default function CreateListingScreen() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      await publishAuction(buildPayload());
+      await publishAuction(await buildPayloadWithDocs());
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.show({
         type: 'success',
