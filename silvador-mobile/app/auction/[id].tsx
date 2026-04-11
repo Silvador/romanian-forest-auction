@@ -602,61 +602,148 @@ function AssortmentBars({ sortVolumes, firewoodVolume, barkVolume }: {
   firewoodVolume?: number;
   barkVolume?: number;
 }) {
-  const industrialKeys = ['G1', 'G2', 'G3', 'M1', 'M2', 'M3', 'LS'];
-  const industrialM3 = industrialKeys.reduce((sum, k) => sum + (sortVolumes[k] ?? 0), 0);
+  const cheresteaKeys = ['G1', 'G2', 'G3'];
+  const industrieKeys = ['M1', 'M2', 'M3', 'LS'];
+
+  const cheresteaM3 = cheresteaKeys.reduce((s, k) => s + (sortVolumes[k] ?? 0), 0);
+  const industrieM3 = industrieKeys.reduce((s, k) => s + (sortVolumes[k] ?? 0), 0);
   const foc = firewoodVolume ?? 0;
   const coaja = barkVolume ?? 0;
-  const total = industrialM3 + foc + coaja;
-  const industrialPct = total > 0 ? (industrialM3 / total) * 100 : 0;
-  const focPct = total > 0 ? (foc / total) * 100 : 0;
-  const coajaPct = total > 0 ? (coaja / total) * 100 : 0;
-  const rendament = total > 0 ? (industrialM3 / total * 100).toFixed(0) : '—';
+  const total = cheresteaM3 + industrieM3 + foc + coaja;
+  const rendament = total > 0 ? Math.round((cheresteaM3 + industrieM3) / total * 100) : 0;
 
-  const rows: { label: string; value: number; color: string }[] = [
-    { label: 'G1', value: sortVolumes.G1 ?? 0, color: '#16a34a' },
-    { label: 'G2', value: sortVolumes.G2 ?? 0, color: '#22c55e' },
-    { label: 'G3', value: sortVolumes.G3 ?? 0, color: '#4ade80' },
-    { label: 'M1', value: sortVolumes.M1 ?? 0, color: '#d97706' },
-    { label: 'M2', value: sortVolumes.M2 ?? 0, color: '#f59e0b' },
-    { label: 'M3', value: sortVolumes.M3 ?? 0, color: '#fbbf24' },
-    { label: 'LS', value: sortVolumes.LS ?? 0, color: '#fcd34d' },
-    { label: 'Lemn foc', value: foc, color: '#ef4444' },
-    { label: 'Coajă', value: coaja, color: '#6b7280' },
-  ].filter(r => r.value > 0);
+  const tiers = [
+    {
+      label: 'CHERESTEA / FURNIR',
+      sublabel: 'G1 + G2 + G3',
+      m3: cheresteaM3,
+      pct: total > 0 ? Math.round(cheresteaM3 / total * 100) : 0,
+      color: '#22c55e',
+      bgColor: 'rgba(34,197,94,0.08)',
+      borderColor: 'rgba(34,197,94,0.20)',
+      dotColor: '#16a34a',
+      items: cheresteaKeys
+        .map(k => ({ label: k, value: sortVolumes[k] ?? 0 }))
+        .filter(i => i.value > 0),
+    },
+    {
+      label: 'LEMN INDUSTRIE',
+      sublabel: 'M1 + M2 + M3 + LS',
+      m3: industrieM3,
+      pct: total > 0 ? Math.round(industrieM3 / total * 100) : 0,
+      color: '#f59e0b',
+      bgColor: 'rgba(245,158,11,0.08)',
+      borderColor: 'rgba(245,158,11,0.20)',
+      dotColor: '#d97706',
+      items: industrieKeys
+        .map(k => ({ label: k, value: sortVolumes[k] ?? 0 }))
+        .filter(i => i.value > 0),
+    },
+    {
+      label: 'LEMN FOC',
+      sublabel: 'Lemn de foc',
+      m3: foc,
+      pct: total > 0 ? Math.round(foc / total * 100) : 0,
+      color: '#ef4444',
+      bgColor: 'rgba(239,68,68,0.08)',
+      borderColor: 'rgba(239,68,68,0.20)',
+      dotColor: '#dc2626',
+      items: [],
+    },
+  ].filter(t => t.m3 > 0);
 
   return (
-    <View style={{ marginTop: 20 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+    <View style={{ marginTop: 24 }}>
+      {/* Section header with big rendament number */}
+      <View style={{ marginBottom: 16 }}>
         <Text style={styles.sectionLabel}>Sortimente lemnoase</Text>
-        <View style={[styles.woodPillSmall, { backgroundColor: 'rgba(34,197,94,0.12)', borderColor: 'rgba(34,197,94,0.3)' }]}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: '#22c55e' }}>
-            Randament ind. {rendament}%
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
+          <Text style={{ fontSize: 32, fontWeight: '800', color: '#22c55e', letterSpacing: -1 }}>
+            {rendament}%
+          </Text>
+          <Text style={{ fontSize: 13, color: Colors.textMuted, fontWeight: '500' }}>
+            randament industrial
           </Text>
         </View>
       </View>
 
-      {/* Stacked bar */}
-      <View style={{ height: 10, borderRadius: 9999, flexDirection: 'row', overflow: 'hidden', backgroundColor: Colors.surfaceElevated, marginBottom: 12 }}>
-        {industrialPct > 0 && <View style={{ flex: industrialPct, backgroundColor: '#22c55e' }} />}
-        {focPct > 0 && <View style={{ flex: focPct, backgroundColor: '#ef4444' }} />}
-        {coajaPct > 0 && <View style={{ flex: coajaPct, backgroundColor: '#6b7280' }} />}
-      </View>
-
-      {/* Rows */}
-      <View style={styles.speciesTable}>
-        {rows.map((r, i) => (
-          <View key={i} style={[styles.tableRow, i === 0 && { borderTopWidth: 0 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 2 }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: r.color }} />
-              <Text style={styles.tableCell}>{r.label}</Text>
+      {/* Tier cards */}
+      {tiers.map((tier, ti) => (
+        <View
+          key={ti}
+          style={{
+            backgroundColor: tier.bgColor,
+            borderWidth: 1,
+            borderColor: tier.borderColor,
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 8,
+          }}
+        >
+          {/* Card header */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: tier.items.length > 0 ? 10 : 0 }}>
+            <View>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: tier.color, letterSpacing: 0.6 }}>
+                {tier.label}
+              </Text>
+              <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: 1 }}>
+                {tier.sublabel}
+              </Text>
             </View>
-            <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>{r.value.toFixed(2)} m³</Text>
-            <Text style={[styles.tableCell, { flex: 0.7, textAlign: 'right', color: Colors.textMuted }]}>
-              {total > 0 ? (r.value / total * 100).toFixed(0) : 0}%
-            </Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: tier.color, letterSpacing: -0.5 }}>
+                {tier.m3.toFixed(0)} m³
+              </Text>
+              <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: '600' }}>
+                {tier.pct}% din total
+              </Text>
+            </View>
           </View>
-        ))}
-      </View>
+
+          {/* Inline bar */}
+          {tier.m3 > 0 && total > 0 && (
+            <View style={{ height: 4, borderRadius: 9999, backgroundColor: 'rgba(255,255,255,0.08)', marginBottom: tier.items.length > 0 ? 10 : 0, overflow: 'hidden' }}>
+              <View style={{ width: `${tier.pct}%`, height: 4, backgroundColor: tier.color, borderRadius: 9999 }} />
+            </View>
+          )}
+
+          {/* Sub-items (G1/G2/G3 or M1/M2/LS) */}
+          {tier.items.length > 0 && (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {tier.items.map((item, ii) => (
+                <View
+                  key={ii}
+                  style={{
+                    flex: 1,
+                    backgroundColor: 'rgba(0,0,0,0.15)',
+                    borderRadius: 8,
+                    padding: 8,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: tier.color, letterSpacing: 0.4 }}>
+                    {item.label}
+                  </Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.text, marginTop: 2 }}>
+                    {item.value.toFixed(0)}m³
+                  </Text>
+                  <Text style={{ fontSize: 10, color: Colors.textMuted }}>
+                    {total > 0 ? Math.round(item.value / total * 100) : 0}%
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      ))}
+
+      {/* Coajă as a quiet footnote row */}
+      {coaja > 0 && (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, paddingTop: 4 }}>
+          <Text style={{ fontSize: 12, color: Colors.textMuted }}>Coajă</Text>
+          <Text style={{ fontSize: 12, color: Colors.textMuted }}>{coaja.toFixed(2)} m³  ({total > 0 ? Math.round(coaja / total * 100) : 0}%)</Text>
+        </View>
+      )}
     </View>
   );
 }
